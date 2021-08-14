@@ -1,0 +1,10 @@
+﻿  bitboard.cpp
+  main.cpp
+  piece_attack_table.cpp
+C:\Users\evanh\Desktop\KittyEngine\piece_attack_table.cpp(12,26): warning C4244: 'argument': conversion from 'Bitboard::U64' to 'int', possible loss of data
+C:\Users\evanh\Desktop\KittyEngine\piece_attack_table.cpp(13,26): warning C4244: 'argument': conversion from 'Bitboard::U64' to 'int', possible loss of data
+C:\Users\evanh\Desktop\KittyEngine\piece_attack_table.cpp(17,26): warning C4244: 'argument': conversion from 'Bitboard::U64' to 'int', possible loss of data
+C:\Users\evanh\Desktop\KittyEngine\piece_attack_table.cpp(18,26): warning C4244: 'argument': conversion from 'Bitboard::U64' to 'int', possible loss of data
+  Generating code
+  Finished generating code
+  KittyEngine.vcxproj -> C:\Users\evanh\Desktop\KittyEngine\x64\Release\KittyEngine.exe
