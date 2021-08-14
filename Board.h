@@ -15,6 +15,17 @@ enum : int
 
 enum : int
 {
+	PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING
+};
+
+constexpr int PIECE_LIST_TABLE[2][6] =
+{
+	{WHITE_PAWN, WHITE_KNIGHT, WHITE_BISHOP, WHITE_ROOK, WHITE_QUEEN, WHITE_KING},
+	{BLACK_PAWN, BLACK_KNIGHT, BLACK_BISHOP, BLACK_ROOK, BLACK_QUEEN, BLACK_KING}
+};
+
+enum : int
+{
 	WK = 0b0001, 
 	WQ = 0b0010, 
 	BK = 0b0100, 
@@ -38,6 +49,7 @@ public:
 
 
 	void ParseFEN(const std::string& str);
+	bool IsSquareAttacked(int square, int attack_side);
 	void PrintBoard();
 
 	Board();

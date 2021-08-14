@@ -119,6 +119,22 @@ Bitboard MaskBishopAttack(int square)
 }
 
 
+Bitboard MaskRookAttack(int square)
+{
+	Bitboard attack = 0;
+
+	int rank = square >> 3;
+	int file = square & 7;
+
+	for (int r = rank + 1, f = file; r <= 6; ++r) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank - 1, f = file; r >= 1; --r) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank, f = file + 1; f <= 6; ++f) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank, f = file - 1; f >= 1; --f) { attack |= 1ull << (r * 8 + f); }
+
+	return attack;
+}
+
+
 Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy)
 {
 	Bitboard attack = 0;
@@ -126,8 +142,8 @@ Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy)
 	int rank = square >> 3;
 	int file = square & 7;
 
-	for (int r = rank + 1, f = file + 1; r <= 7 && f <= 7; ++r, ++f) 
-	{ 
+	for (int r = rank + 1, f = file + 1; r <= 7 && f <= 7; ++r, ++f)
+	{
 		Bitboard bitboard = 1ull << (r * 8 + f);
 		attack |= bitboard;
 		if (bitboard & occupancy) break;
@@ -156,22 +172,6 @@ Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy)
 
 	return attack;
 }
-
-Bitboard MaskRookAttack(int square)
-{
-	Bitboard attack = 0;
-
-	int rank = square >> 3;
-	int file = square & 7;
-
-	for (int r = rank + 1, f = file; r <= 6; ++r) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank - 1, f = file; r >= 1; --r) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank, f = file + 1; f <= 6; ++f) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank, f = file - 1; f >= 1; --f) { attack |= 1ull << (r * 8 + f); }
-
-	return attack;
-}
-
 
 Bitboard MaskRookAttackOnFly(int square, Bitboard occupancy)
 {
@@ -239,6 +239,19 @@ void InitSliderAttackTable()
 	}
 }
 
+
+Bitboard GetPawnAttackExact(int attack_side, int square)
+{
+	return PAWN_ATTACK_TABLE[attack_side][square];
+}
+Bitboard GetKnightAttackExact(int square)
+{
+	return KNIGHT_ATTACK_TABLE[square];
+}
+Bitboard GetKingAttackExact(int square)
+{
+	return KING_ATTACK_TABLE[square];
+}
 
 Bitboard GetBishopAttackExact(int square, Bitboard occupancy)
 {

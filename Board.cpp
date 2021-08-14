@@ -1,4 +1,5 @@
 #include "Board.h"
+#include "piece_attack_table.h"
 #include <iostream>
 #include <cctype>
 
@@ -106,6 +107,31 @@ void Board::ParseFEN(const string& str)
 	}
 
 	iter += 2;
+}
+
+
+bool Board::IsSquareAttacked(int square, int attack_side)
+{
+	//pawn
+	int pawn = PIECE_LIST_TABLE[attack_side][PAWN];
+	if (GetPawnAttackExact(!attack_side, square) & this->bitboard[pawn]) return true;
+
+	int knight = PIECE_LIST_TABLE[attack_side][KNIGHT];
+	if (GetKnightAttackExact(square) & this->bitboard[knight]) return true;
+
+	int bishop = PIECE_LIST_TABLE[attack_side][BISHOP];
+	if (GetBishopAttackExact(square, this->occupancies[BOTH]) & this->bitboard[bishop]) return true;
+
+	int rook = PIECE_LIST_TABLE[attack_side][ROOK];
+	if (GetRookAttackExact(square, this->occupancies[BOTH]) & this->bitboard[rook]) return true;
+
+	int queen = PIECE_LIST_TABLE[attack_side][QUEEN];
+	if (GetQueenAttackExact(square, this->occupancies[BOTH]) & this->bitboard[queen]) return true;
+
+	int king = PIECE_LIST_TABLE[attack_side][KING];
+	if (GetKingAttackExact(square) & this->bitboard[king]) return true;
+
+	return false;
 }
 
 

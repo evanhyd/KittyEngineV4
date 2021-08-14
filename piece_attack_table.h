@@ -49,11 +49,17 @@ void InitLeaperAttackTable();
 
 Bitboard MaskOccupancy(Bitboard attack_mask, int index_filter_mask);
 Bitboard MaskBishopAttack(int square);
-Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy);
 Bitboard MaskRookAttack(int square);
+Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy);
 Bitboard MaskRookAttackOnFly(int square, Bitboard occupancy);
 void InitSliderAttackTable();
 
+
+
+//use these functions to access the real attack table
+Bitboard GetPawnAttackExact(int attack_side, int square);
+Bitboard GetKnightAttackExact(int square);
+Bitboard GetKingAttackExact(int square);
 Bitboard GetBishopAttackExact(int square, Bitboard occupancy);
 Bitboard GetRookAttackExact(int square, Bitboard occupancy);
 Bitboard GetQueenAttackExact(int square, Bitboard occupancy);
