@@ -168,6 +168,15 @@ void Board::GenerateMoves()
 		/*
 		Add the double pawn moves
 		*/
+
+
+		Bitboard pawn_capture_left = (side == WHITE ? pawn_bitboard >> 9 : pawn_bitboard << 7) & this->occupancies[!side] & FILTER_H_FILE_MASK;
+		Bitboard pawn_capture_right = (side == WHITE ? pawn_bitboard >> 7 : pawn_bitboard << 9) & this->occupancies[!side] & FILTER_A_FILE_MASK;
+		/*
+		* Add the pawn capture moves
+		* 
+		* Mask the promotion rank, add the promotion move
+		*/
 	}
 }
 
