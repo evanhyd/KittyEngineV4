@@ -1,4 +1,6 @@
 ﻿  Board.cpp
+C:\Users\evanh\Desktop\KittyEngine\Board.cpp(140,21): warning C4101: 'dest_square': unreferenced local variable
+C:\Users\evanh\Desktop\KittyEngine\Board.cpp(140,6): warning C4101: 'source_square': unreferenced local variable
   magic.cpp
   main.cpp
   piece_attack_table.cpp

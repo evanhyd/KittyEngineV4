@@ -35,6 +35,8 @@ enum : int
 
 char PieceToFen(int piece);
 int FenToPiece(char FEN);
+int GetRank(int square);
+int GetFile(int square);
 
 
 class Board
@@ -49,7 +51,12 @@ public:
 
 
 	void ParseFEN(const std::string& str);
+
+
 	bool IsSquareAttacked(int square, int attack_side);
+	void GenerateMoves();
+
+
 	void PrintBoard();
 
 	Board();

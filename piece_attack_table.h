@@ -44,15 +44,13 @@ extern Bitboard ROOK_ATTACK_TABLE[64][4096];  //[square][magic index]
 Bitboard MaskPawnAttack(int side, int square);
 Bitboard MaskKnightAttack(int square);
 Bitboard MaskKingAttack(int square);
-void InitLeaperAttackTable();
-
-
-Bitboard MaskOccupancy(Bitboard attack_mask, int index_filter_mask);
 Bitboard MaskBishopAttack(int square);
 Bitboard MaskRookAttack(int square);
+Bitboard MaskOccupancy(Bitboard attack_mask, int index_filter_mask);
 Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy);
 Bitboard MaskRookAttackOnFly(int square, Bitboard occupancy);
 void InitSliderAttackTable();
+void InitLeaperAttackTable();
 
 
 

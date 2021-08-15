@@ -5,8 +5,6 @@ using U64 = unsigned long long;
 using U32 = unsigned;
 
 
-
-
 enum : int
 {
 	A8, B8, C8, D8, E8, F8, G8, H8,
@@ -20,6 +18,15 @@ enum : int
 	INVALID_SQUARE = 404
 };
 
+enum : int
+{
+	RANK_8, RANK_7, RANK_6, RANK_5, RANK_4, RANK_3, RANK_2, RANK_1
+};
+
+enum : int
+{
+	FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G, FILE_H
+};
 
 
 class Bitboard

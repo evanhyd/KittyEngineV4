@@ -46,6 +46,15 @@ int FenToPiece(char FEN)
 	}
 }
 
+int GetRank(int square)
+{
+	return 8 - (square >> 3);
+}
+int GetFile(int square)
+{
+	return square & 7;
+}
+
 
 
 void Board::ParseFEN(const string& str)
@@ -132,6 +141,34 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 	if (GetKingAttackExact(square) & this->bitboard[king]) return true;
 
 	return false;
+}
+
+
+void Board::GenerateMoves()
+{
+
+	for (int side = WHITE; side <= BLACK; ++side)
+	{
+		int pawn = PIECE_LIST_TABLE[side][PAWN];
+		Bitboard pawn_bitboard = this->bitboard[pawn];
+
+		//reverse the occupancy, where bit 1 represents an empty space
+		Bitboard not_occupancy = ~this->occupancies[BOTH];
+		Bitboard pawn_push = (side == WHITE ? pawn_bitboard >> 8 : pawn_bitboard << 8) & not_occupancy;
+
+		/*
+		Add the quiet pawn move
+
+
+		Mask the promotion rank, add the promotion move
+		*/
+
+		Bitboard double_pawn_push = (side == WHITE ? pawn_push >> 8 : pawn_push << 8) & not_occupancy;
+
+		/*
+		Add the double pawn moves
+		*/
+	}
 }
 
 

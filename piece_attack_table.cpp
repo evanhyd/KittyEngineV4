@@ -72,16 +72,34 @@ Bitboard MaskKingAttack(int square)
 	return attack;
 }
 
-void InitLeaperAttackTable()
+Bitboard MaskBishopAttack(int square)
 {
-	for (int square = 0; square < 64; ++square)
-	{
-		PAWN_ATTACK_TABLE[WHITE][square] = MaskPawnAttack(WHITE, square);
-		PAWN_ATTACK_TABLE[BLACK][square] = MaskPawnAttack(BLACK, square);
+	Bitboard attack = 0;
 
-		KNIGHT_ATTACK_TABLE[square] = MaskKnightAttack(square);
-		KING_ATTACK_TABLE[square] = MaskKingAttack(square);
-	}
+	int rank = square >> 3;
+	int file = square & 7;
+
+	for (int r = rank + 1, f = file + 1; r <= 6 && f <= 6; ++r, ++f) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank + 1, f = file - 1; r <= 6 && f >= 1; ++r, --f) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank - 1, f = file + 1; r >= 1 && f <= 6; --r, ++f) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank - 1, f = file - 1; r >= 1 && f >= 1; --r, --f) { attack |= 1ull << (r * 8 + f); }
+
+	return attack;
+}
+
+Bitboard MaskRookAttack(int square)
+{
+	Bitboard attack = 0;
+
+	int rank = square >> 3;
+	int file = square & 7;
+
+	for (int r = rank + 1, f = file; r <= 6; ++r) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank - 1, f = file; r >= 1; --r) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank, f = file + 1; f <= 6; ++f) { attack |= 1ull << (r * 8 + f); }
+	for (int r = rank, f = file - 1; f >= 1; --f) { attack |= 1ull << (r * 8 + f); }
+
+	return attack;
 }
 
 
@@ -102,38 +120,6 @@ Bitboard MaskOccupancy(Bitboard attack_mask, int index_filter_mask)
 
 	return occupancy;
 }
-
-Bitboard MaskBishopAttack(int square)
-{
-	Bitboard attack = 0;
-
-	int rank = square >> 3;
-	int file = square & 7;
-
-	for (int r = rank + 1, f = file + 1; r <= 6 && f <= 6; ++r, ++f) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank + 1, f = file - 1; r <= 6 && f >= 1; ++r, --f) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank - 1, f = file + 1; r >= 1 && f <= 6; --r, ++f) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank - 1, f = file - 1; r >= 1 && f >= 1; --r, --f) { attack |= 1ull << (r * 8 + f); }
-
-	return attack;
-}
-
-
-Bitboard MaskRookAttack(int square)
-{
-	Bitboard attack = 0;
-
-	int rank = square >> 3;
-	int file = square & 7;
-
-	for (int r = rank + 1, f = file; r <= 6; ++r) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank - 1, f = file; r >= 1; --r) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank, f = file + 1; f <= 6; ++f) { attack |= 1ull << (r * 8 + f); }
-	for (int r = rank, f = file - 1; f >= 1; --f) { attack |= 1ull << (r * 8 + f); }
-
-	return attack;
-}
-
 
 Bitboard MaskBishopAttackOnFly(int square, Bitboard occupancy)
 {
@@ -211,6 +197,18 @@ Bitboard MaskRookAttackOnFly(int square, Bitboard occupancy)
 	return attack;
 }
 
+
+void InitLeaperAttackTable()
+{
+	for (int square = 0; square < 64; ++square)
+	{
+		PAWN_ATTACK_TABLE[WHITE][square] = MaskPawnAttack(WHITE, square);
+		PAWN_ATTACK_TABLE[BLACK][square] = MaskPawnAttack(BLACK, square);
+
+		KNIGHT_ATTACK_TABLE[square] = MaskKnightAttack(square);
+		KING_ATTACK_TABLE[square] = MaskKingAttack(square);
+	}
+}
 
 void InitSliderAttackTable()
 {
