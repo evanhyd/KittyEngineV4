@@ -144,17 +144,20 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 }
 
 
-void Board::GenerateMoves()
+void Board::GenerateMoves(int side)
 {
 
-	for (int side = WHITE; side <= BLACK; ++side)
-	{
-		int pawn = PIECE_LIST_TABLE[side][PAWN];
-		Bitboard pawn_bitboard = this->bitboard[pawn];
+	int pawn = PIECE_LIST_TABLE[side][PAWN];
+	Bitboard pawn_bitboard = this->bitboard[pawn];
 
-		//reverse the occupancy, where bit 1 represents an empty space
-		Bitboard not_occupancy = ~this->occupancies[BOTH];
-		Bitboard pawn_push = (side == WHITE ? pawn_bitboard >> 8 : pawn_bitboard << 8) & not_occupancy;
+	//reverse the occupancy, where bit 1 represents an empty space
+	Bitboard not_occupancy = ~this->occupancies[BOTH];
+
+	Bitboard pawn_push = (side == WHITE ? pawn_bitboard >> 8 : pawn_bitboard << 8) & not_occupancy;
+	for (Bitboard cpy_pawn_push = pawn_push; cpy_pawn_push; cpy_pawn_push.PopBit())
+	{
+		int dest_square = cpy_pawn_push.GetLeastSigBit();
+		int source_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
 		/*
 		Add the quiet pawn move
@@ -162,21 +165,56 @@ void Board::GenerateMoves()
 
 		Mask the promotion rank, add the promotion move
 		*/
+	}
+	
 
-		Bitboard double_pawn_push = (side == WHITE ? pawn_push >> 8 : pawn_push << 8) & not_occupancy;
-
+	Bitboard double_pawn_push = (side == WHITE ? pawn_push >> 8 : pawn_push << 8) & not_occupancy;
+	for (Bitboard cpy_double_pawn_push = double_pawn_push; cpy_double_pawn_push; cpy_double_pawn_push.PopBit())
+	{
+		int dest_square = cpy_double_pawn_push.GetLeastSigBit();
+		int source_square = (side == WHITE ? dest_square + 16 : dest_square - 16);
 		/*
-		Add the double pawn moves
-		*/
+	    Add the double pawn moves
 
 
-		Bitboard pawn_capture_left = (side == WHITE ? pawn_bitboard >> 9 : pawn_bitboard << 7) & this->occupancies[!side] & FILTER_H_FILE_MASK;
-		Bitboard pawn_capture_right = (side == WHITE ? pawn_bitboard >> 7 : pawn_bitboard << 9) & this->occupancies[!side] & FILTER_A_FILE_MASK;
-		/*
-		* Add the pawn capture moves
-		* 
-		* Mask the promotion rank, add the promotion move
+		Mask the promotion rank, add the promotion move
 		*/
+	}
+
+
+	Bitboard pawn_capture_left = (side == WHITE ? pawn_bitboard >> 9 : pawn_bitboard << 7) & this->occupancies[!side] & FILTER_H_FILE_MASK;
+	Bitboard pawn_capture_right = (side == WHITE ? pawn_bitboard >> 7 : pawn_bitboard << 9) & this->occupancies[!side] & FILTER_A_FILE_MASK;
+
+	for (Bitboard pawn_capture = pawn_capture_left | pawn_capture_right; pawn_capture; pawn_capture.PopBit())
+	{
+		int dest_square = pawn_capture.GetLeastSigBit();
+
+		//simulate an attack from the being captured side
+		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square]; pawn_attack; pawn_attack.PopBit())
+		{
+			int source_square = pawn_attack.GetLeastSigBit();
+			/*
+			Add capture moves
+
+			Mask the promotion rank, add the promotion moves
+			*/
+		}
+	}
+
+
+	if (this->enpassant_square != INVALID_SQUARE)
+	{
+		//simulate an attack from the being captured side
+		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][this->enpassant_square]; pawn_attack; pawn_attack.PopBit())
+		{
+			int dest_square = this->enpassant_square;
+			int source_square = pawn_attack.GetLeastSigBit();
+			/*
+			* Add the enpassant move
+			*
+			* mark the enpassant flag
+			*/
+		}
 	}
 }
 

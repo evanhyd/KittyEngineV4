@@ -54,7 +54,7 @@ public:
 
 
 	bool IsSquareAttacked(int square, int attack_side);
-	void GenerateMoves();
+	void GenerateMoves(int side);
 
 
 	void PrintBoard();
