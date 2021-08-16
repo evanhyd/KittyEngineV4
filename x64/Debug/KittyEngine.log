@@ -1,4 +1,6 @@
 ﻿  board.cpp
+C:\Users\evanh\Desktop\KittyEngine\board.cpp(184,68): warning C4244: 'argument': conversion from 'U64' to 'int', possible loss of data
+  fast_stack.cpp
   main.cpp
   move.cpp
   piece_attack_table.cpp

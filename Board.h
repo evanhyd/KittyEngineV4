@@ -2,6 +2,7 @@
 #include "bitboard.h"
 #include "fast_stack.h"
 #include <string>
+#include <vector>
 
 enum : int
 {
@@ -64,7 +65,7 @@ public:
 	bool IsSquareAttacked(int square, int attack_side);
 
 
-	void GenerateMoves(int side);
+	std::vector<Move> GenerateMoves(int side);
 
 
 	void PrintBoard();

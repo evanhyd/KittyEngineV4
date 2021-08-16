@@ -145,9 +145,10 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 }
 
 
-void Board::GenerateMoves(int side)
+vector<Move> Board::GenerateMoves(int side)
 {
-	vector<int> pseudo_moves;
+	vector<Move> pseudo_moves;
+	pseudo_moves.reserve(218);
 
 	int pawn = PIECE_LIST_TABLE[side][PAWN];
 
@@ -160,12 +161,18 @@ void Board::GenerateMoves(int side)
 		int dest_square = cpy_pawn_push.GetLeastSigBit();
 		int source_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
-		/*
-		Add the quiet pawn move
-
-
-		Mask the promotion rank, add the promotion move
-		*/
+		//no need to check for the side, because pawn can not move backward
+		if (GetRank(dest_square) == RANK_8 || GetRank(dest_square) == RANK_1)
+		{
+			for (int promoted_piece = PIECE_LIST_TABLE[side][KNIGHT]; promoted_piece <= PIECE_LIST_TABLE[side][QUEEN]; ++promoted_piece)
+			{
+				pseudo_moves.push_back(Move(source_square, dest_square, pawn, promoted_piece));
+			}
+		}
+		else
+		{
+			pseudo_moves.push_back(Move(source_square, dest_square, pawn));
+		}
 	}
 	
 
@@ -174,12 +181,7 @@ void Board::GenerateMoves(int side)
 	{
 		int dest_square = cpy_double_pawn_push.GetLeastSigBit();
 		int source_square = (side == WHITE ? dest_square + 16 : dest_square - 16);
-		/*
-	    Add the double pawn moves
-
-
-		Mask the promotion rank, add the promotion move
-		*/
+		pseudo_moves.push_back(Move(source_square, dest_square, pawn, 0, double_pawn_push));
 	}
 
 
@@ -195,11 +197,18 @@ void Board::GenerateMoves(int side)
 		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->occupancies[side]; pawn_attack; pawn_attack.PopBit())
 		{
 			int source_square = pawn_attack.GetLeastSigBit();
-			/*
-			Add capture moves
 
-			Mask the promotion rank, add the promotion moves
-			*/
+			if (GetRank(dest_square) == RANK_8 || GetRank(dest_square) == RANK_1)
+			{
+				for (int promoted_piece = PIECE_LIST_TABLE[side][KNIGHT]; promoted_piece <= PIECE_LIST_TABLE[side][QUEEN]; ++promoted_piece)
+				{
+					pseudo_moves.push_back(Move(source_square, dest_square, pawn, promoted_piece, Move::CAPTURE_FLAG));
+				}
+			}
+			else
+			{
+				pseudo_moves.push_back(Move(source_square, dest_square, pawn, 0, Move::CAPTURE_FLAG));
+			}
 		}
 		pawn_capture.PopBit();
 	}
@@ -213,13 +222,18 @@ void Board::GenerateMoves(int side)
 		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->occupancies[side]; pawn_attack; pawn_attack.PopBit())
 		{
 			int source_square = pawn_attack.GetLeastSigBit();
-			/*
-			* Add the enpassant move
-			*
-			* mark the enpassant flag
-			*/
+
+			//do i need capture flag?
+			pseudo_moves.push_back(Move(source_square, dest_square, pawn, 0, Move::ENPASSANT_FLAG));
 		}
 	}
+
+
+
+
+
+
+
 
 
 	int knight = PIECE_LIST_TABLE[side][KNIGHT];
@@ -231,15 +245,26 @@ void Board::GenerateMoves(int side)
 		for (Bitboard knight_attack = KNIGHT_ATTACK_TABLE[source_square] & ~this->occupancies[side]; knight_attack; knight_attack.PopBit())
 		{
 			int dest_square = knight_attack.GetLeastSigBit();
-			/*
-			* Add the knight attack
-			*/
+			if(this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, knight, 0, Move::CAPTURE_FLAG));
+			else pseudo_moves.push_back(Move(source_square, dest_square, knight));
 		}
 	}
 
 
+
+
+
+
 	int king = PIECE_LIST_TABLE[side][KING];
 	int king_square = this->bitboard[king].GetLeastSigBit();
+
+	for (Bitboard king_attack = KING_ATTACK_TABLE[king_square] & ~this->occupancies[side]; king_attack; king_attack.PopBit())
+	{
+		int dest_square = king_attack.GetLeastSigBit();
+		
+		if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CAPTURE_FLAG));
+		else pseudo_moves.push_back(Move(king_square, dest_square, king));
+	}
 
 	for (int castle_type = KING_SIDE; castle_type <= QUEEN_SIDE; ++castle_type)
 	{
@@ -252,12 +277,19 @@ void Board::GenerateMoves(int side)
 
 			if (!IsSquareAttacked(king_square, !side) && !IsSquareAttacked(adj_square, !side))
 			{
-				/*
-				* Add the castle move
-				*/
+				pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CASTLING_FLAG));
 			}
 		}
 	}
+
+
+
+
+
+
+
+
+
 
 
 	int bishop = PIECE_LIST_TABLE[side][BISHOP];
@@ -268,11 +300,19 @@ void Board::GenerateMoves(int side)
 		for (Bitboard bishop_attack = GetBishopAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; bishop_attack; bishop_attack.PopBit())
 		{
 			int dest_square = bishop_attack.GetLeastSigBit();
-			/*
-			* Add the bishop attack
-			*/
+			
+			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, bishop, 0, Move::CAPTURE_FLAG));
+			else pseudo_moves.push_back(Move(source_square, dest_square, bishop));
 		}
 	}
+
+
+
+
+
+
+
+
 
 	int rook = PIECE_LIST_TABLE[side][ROOK];
 	for (Bitboard rook_bitboard = this->bitboard[rook]; rook_bitboard; rook_bitboard.PopBit())
@@ -283,11 +323,24 @@ void Board::GenerateMoves(int side)
 		for (Bitboard rook_attack = GetRookAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; rook_attack; rook_attack.PopBit())
 		{
 			int dest_square = rook_attack.GetLeastSigBit();
-			/*
-			* Add the rook attack
-			*/
+			
+			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, rook, 0, Move::CAPTURE_FLAG));
+			else pseudo_moves.push_back(Move(source_square, dest_square, rook));
 		}
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	int queen = PIECE_LIST_TABLE[side][QUEEN];
 	for (Bitboard queen_bitboard = this->bitboard[queen]; queen_bitboard; queen_bitboard.PopBit())
@@ -298,11 +351,13 @@ void Board::GenerateMoves(int side)
 		for (Bitboard queen_attack = GetQueenAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; queen_attack; queen_attack.PopBit())
 		{
 			int dest_square = queen_attack.GetLeastSigBit();
-			/*
-			* Add the queen attack
-			*/
+			
+			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, queen, 0, Move::CAPTURE_FLAG));
+			else pseudo_moves.push_back(Move(source_square, dest_square, queen));
 		}
 	}
+
+	return pseudo_moves;
 }
 
 
