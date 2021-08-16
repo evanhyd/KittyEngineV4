@@ -1,5 +1,6 @@
 #pragma once
 #include "bitboard.h"
+#include "fast_stack.h"
 #include <string>
 
 enum : int
@@ -26,11 +27,16 @@ constexpr int PIECE_LIST_TABLE[2][6] =
 
 enum : int
 {
-	WK = 0b0001, 
-	WQ = 0b0010, 
-	BK = 0b0100, 
-	BQ = 0b1000 
+	WK = 0b0001, WQ = 0b0010, BK = 0b0100, BQ = 0b1000 
 };
+
+enum : int
+{
+	KING_SIDE, QUEEN_SIDE
+};
+
+constexpr int CASTLE_PERMISSION_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
+constexpr U64 CASTLE_OCCUPANCY_MASK_TABLE[2][2] = { {63, 59}, {7, 3} }; //[side][castle_type]
 
 
 char PieceToFen(int piece);
@@ -49,11 +55,15 @@ public:
 	int castle;
 	int enpassant_square;
 
+	FastStack move_history;
+
 
 	void ParseFEN(const std::string& str);
 
 
 	bool IsSquareAttacked(int square, int attack_side);
+
+
 	void GenerateMoves(int side);
 
 

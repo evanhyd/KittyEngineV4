@@ -3,6 +3,8 @@
 #include "Board.h"
 #include <iostream>
 
+
+
 Bitboard PAWN_ATTACK_TABLE[2][64] = {};
 Bitboard KNIGHT_ATTACK_TABLE[64] = {};
 Bitboard KING_ATTACK_TABLE[64] = {};

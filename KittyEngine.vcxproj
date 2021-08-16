@@ -143,16 +143,20 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="bitboard.cpp" />
-    <ClCompile Include="Board.cpp" />
+    <ClCompile Include="board.cpp" />
+    <ClCompile Include="fast_stack.cpp" />
     <ClCompile Include="magic.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="move.cpp" />
     <ClCompile Include="piece_attack_table.cpp" />
     <ClCompile Include="random.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bitboard.h" />
-    <ClInclude Include="Board.h" />
+    <ClInclude Include="board.h" />
+    <ClInclude Include="fast_stack.h" />
     <ClInclude Include="magic.h" />
+    <ClInclude Include="move.h" />
     <ClInclude Include="piece_attack_table.h" />
     <ClInclude Include="random.h" />
   </ItemGroup>
