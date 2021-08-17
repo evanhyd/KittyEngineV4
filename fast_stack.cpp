@@ -1,15 +1,11 @@
 #include "fast_stack.h"
 
 
-int FastStack::Size()
-{
-	return this->size;
-}
 bool FastStack::Empty()
 {
 	return this->size == 0;
 }
-void FastStack::PushBack(Move new_move)
+void FastStack::PushBack(const Boardstate& new_move)
 {
 	this->stack[this->size++] = new_move;
 }
@@ -17,24 +13,19 @@ void FastStack::PopBack()
 {
 	--this->size;
 }
-
-Move& FastStack::Front()
+void FastStack::Clear()
 {
-	return this->stack[0];
+	this->size = 0;
 }
 
-Move& FastStack::Back()
+Boardstate& FastStack::Back()
 {
 	return this->stack[size - 1];
 }
 
-Move& FastStack::operator[](int index)
-{
-	return this->stack[index];
-}
 
 FastStack::FastStack(int size)
 {
-	this->stack = new Move[size]();
+	this->stack = new Boardstate[size]();
 	this->size = size;
 }

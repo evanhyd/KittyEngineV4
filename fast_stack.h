@@ -1,23 +1,19 @@
 #pragma once
-#include "move.h"
+#include "boardstate.h"
 
 using namespace std;
 
 class FastStack
 {
-	Move* stack;
+	Boardstate* stack;
 	int size;
 
-
 public:
-
-	int Size();
 	bool Empty();
-	void PushBack(Move new_move);
+	void PushBack(const Boardstate& new_move);
 	void PopBack();
-	Move& Front();
-	Move& Back();
-	Move& operator[](int index);
+	void Clear();
+	Boardstate& Back();
 
 	FastStack(int size);
 };

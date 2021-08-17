@@ -60,8 +60,8 @@ int GetFile(int square)
 
 void Board::ParseFEN(const string& str)
 {
-	fill(begin(this->bitboard), end(this->bitboard), 0);
-	fill(begin(this->occupancies), end(this->occupancies), 0);
+	this->boardstate.Clear();
+	this->boardstate_history.Clear();
 
 
 	auto iter = str.begin();
@@ -69,35 +69,35 @@ void Board::ParseFEN(const string& str)
 	{
 		char letter = *iter++;
 		if (isdigit(letter)) square += letter - '0';
-		else if (isalpha(letter)) this->bitboard[FenToPiece(letter)].SetBit(square++);
+		else if (isalpha(letter)) this->boardstate.bitboard[FenToPiece(letter)].SetBit(square++);
 	}
 
 	for (int piece = WHITE_PAWN; piece <= WHITE_KING; ++piece)
 	{
-		this->occupancies[WHITE] |= this->bitboard[piece];
+		this->boardstate.occupancies[WHITE] |= this->boardstate.bitboard[piece];
 	}
 	for (int piece = BLACK_PAWN; piece <= BLACK_KING; ++piece)
 	{
-		this->occupancies[BLACK] |= this->bitboard[piece];
+		this->boardstate.occupancies[BLACK] |= this->boardstate.bitboard[piece];
 	}
-	this->occupancies[BOTH] = this->occupancies[WHITE] | this->occupancies[BLACK];
+	this->boardstate.occupancies[BOTH] = this->boardstate.occupancies[WHITE] | this->boardstate.occupancies[BLACK];
 
 
-	this->side_to_move = (*++iter == 'w' ? WHITE : BLACK);
+	this->boardstate.side_to_move = (*++iter == 'w' ? WHITE : BLACK);
 
 	iter += 2;
 
-	this->castle = 0;
+	this->boardstate.castle = 0;
 	while (true)
 	{
 		if (*iter == ' ') break;
 
 		switch (*iter)
 		{
-		case 'K': this->castle |= WK; break;
-		case 'Q': this->castle |= WQ; break;
-		case 'k': this->castle |= BK; break;
-		case 'q': this->castle |= BQ; break;
+		case 'K': this->boardstate.castle |= WK; break;
+		case 'Q': this->boardstate.castle |= WQ; break;
+		case 'k': this->boardstate.castle |= BK; break;
+		case 'q': this->boardstate.castle |= BQ; break;
 		}
 		++iter;
 	}
@@ -109,11 +109,11 @@ void Board::ParseFEN(const string& str)
 		int file = *iter - 'a';
 		++iter;
 		int rank = 8 - (*iter - '0');
-		this->enpassant_square = rank * 8 + file;
+		this->boardstate.enpassant_square = rank * 8 + file;
 	}
 	else
 	{
-		this->enpassant_square = INVALID_SQUARE;
+		this->boardstate.enpassant_square = INVALID_SQUARE;
 	}
 
 	iter += 2;
@@ -124,22 +124,22 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 {
 	//pawn
 	int pawn = PIECE_LIST_TABLE[attack_side][PAWN];
-	if (GetPawnAttackExact(!attack_side, square) & this->bitboard[pawn]) return true;
+	if (GetPawnAttackExact(!attack_side, square) & this->boardstate.bitboard[pawn]) return true;
 
 	int knight = PIECE_LIST_TABLE[attack_side][KNIGHT];
-	if (GetKnightAttackExact(square) & this->bitboard[knight]) return true;
+	if (GetKnightAttackExact(square) & this->boardstate.bitboard[knight]) return true;
 
 	int bishop = PIECE_LIST_TABLE[attack_side][BISHOP];
-	if (GetBishopAttackExact(square, this->occupancies[BOTH]) & this->bitboard[bishop]) return true;
+	if (GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[bishop]) return true;
 
 	int rook = PIECE_LIST_TABLE[attack_side][ROOK];
-	if (GetRookAttackExact(square, this->occupancies[BOTH]) & this->bitboard[rook]) return true;
+	if (GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[rook]) return true;
 
 	int queen = PIECE_LIST_TABLE[attack_side][QUEEN];
-	if (GetQueenAttackExact(square, this->occupancies[BOTH]) & this->bitboard[queen]) return true;
+	if (GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[queen]) return true;
 
 	int king = PIECE_LIST_TABLE[attack_side][KING];
-	if (GetKingAttackExact(square) & this->bitboard[king]) return true;
+	if (GetKingAttackExact(square) & this->boardstate.bitboard[king]) return true;
 
 	return false;
 }
@@ -153,9 +153,9 @@ vector<Move> Board::GenerateMoves(int side)
 	int pawn = PIECE_LIST_TABLE[side][PAWN];
 
 	//reverse the occupancy, where bit 1 represents an empty space
-	Bitboard not_occupancy = ~this->occupancies[BOTH];
+	Bitboard not_occupancy = ~this->boardstate.occupancies[BOTH];
 
-	Bitboard pawn_push = (side == WHITE ? this->bitboard[pawn] >> 8 : this->bitboard[pawn] << 8) & not_occupancy;
+	Bitboard pawn_push = (side == WHITE ? this->boardstate.bitboard[pawn] >> 8 : this->boardstate.bitboard[pawn] << 8) & not_occupancy;
 	for (Bitboard cpy_pawn_push = pawn_push; cpy_pawn_push; cpy_pawn_push.PopBit())
 	{
 		int dest_square = cpy_pawn_push.GetLeastSigBit();
@@ -181,20 +181,20 @@ vector<Move> Board::GenerateMoves(int side)
 	{
 		int dest_square = cpy_double_pawn_push.GetLeastSigBit();
 		int source_square = (side == WHITE ? dest_square + 16 : dest_square - 16);
-		pseudo_moves.push_back(Move(source_square, dest_square, pawn, 0, double_pawn_push));
+		pseudo_moves.push_back(Move(source_square, dest_square, pawn, 0, Move::DOUBLE_PUSH_FLAG));
 	}
 
 
 	Bitboard pawn_capture = 0;
-	if (side == WHITE) pawn_capture = this->bitboard[pawn] >> 9 & this->occupancies[!side] & FILTER_H_FILE_MASK | this->bitboard[pawn] >> 7 & this->occupancies[!side] & FILTER_A_FILE_MASK;
-	else pawn_capture = this->bitboard[pawn] >> 7 & this->occupancies[!side] & FILTER_H_FILE_MASK | this->bitboard[pawn] >> 9 & this->occupancies[!side] & FILTER_A_FILE_MASK;
+	if (side == WHITE) pawn_capture = this->boardstate.bitboard[pawn] >> 9 & this->boardstate.occupancies[!side] & FILTER_H_FILE_MASK | this->boardstate.bitboard[pawn] >> 7 & this->boardstate.occupancies[!side] & FILTER_A_FILE_MASK;
+	else pawn_capture = this->boardstate.bitboard[pawn] >> 7 & this->boardstate.occupancies[!side] & FILTER_H_FILE_MASK | this->boardstate.bitboard[pawn] >> 9 & this->boardstate.occupancies[!side] & FILTER_A_FILE_MASK;
 
 	while (pawn_capture)
 	{
 		int dest_square = pawn_capture.GetLeastSigBit();
 
 		//simulate an attack from the being captured side
-		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->occupancies[side]; pawn_attack; pawn_attack.PopBit())
+		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->boardstate.occupancies[side]; pawn_attack; pawn_attack.PopBit())
 		{
 			int source_square = pawn_attack.GetLeastSigBit();
 
@@ -214,12 +214,12 @@ vector<Move> Board::GenerateMoves(int side)
 	}
 
 
-	if (this->enpassant_square != INVALID_SQUARE)
+	if (this->boardstate.enpassant_square != INVALID_SQUARE)
 	{
-		int dest_square = this->enpassant_square;
+		int dest_square = this->boardstate.enpassant_square;
 
 		//simulate an attack from the being captured side
-		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->occupancies[side]; pawn_attack; pawn_attack.PopBit())
+		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->boardstate.occupancies[side]; pawn_attack; pawn_attack.PopBit())
 		{
 			int source_square = pawn_attack.GetLeastSigBit();
 
@@ -237,15 +237,15 @@ vector<Move> Board::GenerateMoves(int side)
 
 
 	int knight = PIECE_LIST_TABLE[side][KNIGHT];
-	for (Bitboard knight_bitboard = this->bitboard[knight]; knight_bitboard; knight_bitboard.PopBit())
+	for (Bitboard knight_bitboard = this->boardstate.bitboard[knight]; knight_bitboard; knight_bitboard.PopBit())
 	{
 		int source_square = knight_bitboard.GetLeastSigBit();
 
 		//knight attacks empty or enemy occupied squares
-		for (Bitboard knight_attack = KNIGHT_ATTACK_TABLE[source_square] & ~this->occupancies[side]; knight_attack; knight_attack.PopBit())
+		for (Bitboard knight_attack = KNIGHT_ATTACK_TABLE[source_square] & ~this->boardstate.occupancies[side]; knight_attack; knight_attack.PopBit())
 		{
 			int dest_square = knight_attack.GetLeastSigBit();
-			if(this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, knight, 0, Move::CAPTURE_FLAG));
+			if(this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, knight, 0, Move::CAPTURE_FLAG));
 			else pseudo_moves.push_back(Move(source_square, dest_square, knight));
 		}
 	}
@@ -256,20 +256,20 @@ vector<Move> Board::GenerateMoves(int side)
 
 
 	int king = PIECE_LIST_TABLE[side][KING];
-	int king_square = this->bitboard[king].GetLeastSigBit();
+	int king_square = this->boardstate.bitboard[king].GetLeastSigBit();
 
-	for (Bitboard king_attack = KING_ATTACK_TABLE[king_square] & ~this->occupancies[side]; king_attack; king_attack.PopBit())
+	for (Bitboard king_attack = KING_ATTACK_TABLE[king_square] & ~this->boardstate.occupancies[side]; king_attack; king_attack.PopBit())
 	{
 		int dest_square = king_attack.GetLeastSigBit();
 		
-		if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CAPTURE_FLAG));
+		if (this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CAPTURE_FLAG));
 		else pseudo_moves.push_back(Move(king_square, dest_square, king));
 	}
 
 	for (int castle_type = KING_SIDE; castle_type <= QUEEN_SIDE; ++castle_type)
 	{
 		//check the occupancy
-		if ((this->occupancies[BOTH] & CASTLE_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
+		if ((this->boardstate.occupancies[BOTH] & CASTLE_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
 		{
 			//king and the adjacent squares can not be in checked
 			int adj_square = (castle_type == KING_SIDE ? king_square + 1 : king_square - 1);
@@ -287,21 +287,16 @@ vector<Move> Board::GenerateMoves(int side)
 
 
 
-
-
-
-
-
 	int bishop = PIECE_LIST_TABLE[side][BISHOP];
-	for (Bitboard bishop_bitboard = this->bitboard[bishop]; bishop_bitboard; bishop_bitboard.PopBit())
+	for (Bitboard bishop_bitboard = this->boardstate.bitboard[bishop]; bishop_bitboard; bishop_bitboard.PopBit())
 	{
 		int source_square = bishop_bitboard.GetLeastSigBit();
 
-		for (Bitboard bishop_attack = GetBishopAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; bishop_attack; bishop_attack.PopBit())
+		for (Bitboard bishop_attack = GetBishopAttackExact(source_square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[side]; bishop_attack; bishop_attack.PopBit())
 		{
 			int dest_square = bishop_attack.GetLeastSigBit();
 			
-			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, bishop, 0, Move::CAPTURE_FLAG));
+			if (this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, bishop, 0, Move::CAPTURE_FLAG));
 			else pseudo_moves.push_back(Move(source_square, dest_square, bishop));
 		}
 	}
@@ -310,21 +305,17 @@ vector<Move> Board::GenerateMoves(int side)
 
 
 
-
-
-
-
 	int rook = PIECE_LIST_TABLE[side][ROOK];
-	for (Bitboard rook_bitboard = this->bitboard[rook]; rook_bitboard; rook_bitboard.PopBit())
+	for (Bitboard rook_bitboard = this->boardstate.bitboard[rook]; rook_bitboard; rook_bitboard.PopBit())
 	{
 		int source_square = rook_bitboard.GetLeastSigBit();
 
 		//knight attacks empty or enemy occupied squares
-		for (Bitboard rook_attack = GetRookAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; rook_attack; rook_attack.PopBit())
+		for (Bitboard rook_attack = GetRookAttackExact(source_square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[side]; rook_attack; rook_attack.PopBit())
 		{
 			int dest_square = rook_attack.GetLeastSigBit();
 			
-			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, rook, 0, Move::CAPTURE_FLAG));
+			if (this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, rook, 0, Move::CAPTURE_FLAG));
 			else pseudo_moves.push_back(Move(source_square, dest_square, rook));
 		}
 	}
@@ -336,28 +327,50 @@ vector<Move> Board::GenerateMoves(int side)
 
 
 
-
-
-
-
-
-
 	int queen = PIECE_LIST_TABLE[side][QUEEN];
-	for (Bitboard queen_bitboard = this->bitboard[queen]; queen_bitboard; queen_bitboard.PopBit())
+	for (Bitboard queen_bitboard = this->boardstate.bitboard[queen]; queen_bitboard; queen_bitboard.PopBit())
 	{
 		int source_square = queen_bitboard.GetLeastSigBit();
 
 		//knight attacks empty or enemy occupied squares
-		for (Bitboard queen_attack = GetQueenAttackExact(source_square, this->occupancies[BOTH]) & ~this->occupancies[side]; queen_attack; queen_attack.PopBit())
+		for (Bitboard queen_attack = GetQueenAttackExact(source_square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[side]; queen_attack; queen_attack.PopBit())
 		{
 			int dest_square = queen_attack.GetLeastSigBit();
 			
-			if (this->occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, queen, 0, Move::CAPTURE_FLAG));
+			if (this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, queen, 0, Move::CAPTURE_FLAG));
 			else pseudo_moves.push_back(Move(source_square, dest_square, queen));
 		}
 	}
 
 	return pseudo_moves;
+}
+
+bool Board::MakeMove(Move move)
+{
+	this->boardstate_history.PushBack(this->boardstate);
+
+	int source_square = move.GetSource();
+	int dest_square = move.GetDest();
+	int moving_piece = move.GetPiece();
+
+	this->boardstate.bitboard[moving_piece].ClearBit(source_square);
+	this->boardstate.bitboard[moving_piece].SetBit(dest_square);
+
+	if (move.IsCapture())
+	{
+		for (int captured_piece = PIECE_LIST_TABLE[!this->boardstate.side_to_move][0]; captured_piece <= PIECE_LIST_TABLE[!this->boardstate.side_to_move][1]; ++captured_piece)
+		{
+			if (this->boardstate.bitboard[captured_piece].GetBit(dest_square))
+			{
+				this->boardstate.bitboard[captured_piece].ClearBit(dest_square);
+				break;
+			}
+		}
+	}
+
+	//update the occupancies
+
+	return true;
 }
 
 
@@ -373,7 +386,7 @@ void Board::PrintBoard()
 			bool found = false;
 			for (int piece = WHITE_PAWN; piece <= BLACK_KING; ++piece)
 			{
-				if (this->bitboard[piece].GetBit(square))
+				if (this->boardstate.bitboard[piece].GetBit(square))
 				{
 					cout << "| " << PieceToFen(piece) << ' ';
 					found = true;
@@ -388,13 +401,13 @@ void Board::PrintBoard()
 
 	cout << "  -------------------------------\n   a   b   c   d   e   f   g   h\n";
 
-	cout << "Castle: " << this->castle << '\n';
-	cout << "Enpassant: " << this->enpassant_square << '\n';
+	cout << "Castle: " << this->boardstate.castle << '\n';
+	cout << "Enpassant: " << this->boardstate.enpassant_square << '\n';
 
-	if (this->side_to_move == WHITE) cout << "White to move:\n";
+	if (this->boardstate.side_to_move == WHITE) cout << "White to move:\n";
 	else cout << "Black to move:\n";
 }
 
-Board::Board() : move_history(256)
+Board::Board() : boardstate_history(256)
 {
 }

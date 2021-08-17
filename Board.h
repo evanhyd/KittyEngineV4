@@ -1,6 +1,7 @@
 #pragma once
 #include "bitboard.h"
 #include "fast_stack.h"
+#include "move.h"
 #include <string>
 #include <vector>
 
@@ -49,24 +50,17 @@ int GetFile(int square);
 class Board
 {
 public:
-	Bitboard bitboard[12];
-	Bitboard occupancies[3];
 
-	int side_to_move;
-	int castle;
-	int enpassant_square;
-
-	FastStack move_history;
+	Boardstate boardstate;
+	FastStack boardstate_history;
 
 
 	void ParseFEN(const std::string& str);
 
-
 	bool IsSquareAttacked(int square, int attack_side);
 
-
 	std::vector<Move> GenerateMoves(int side);
-
+	bool MakeMove(Move move);
 
 	void PrintBoard();
 

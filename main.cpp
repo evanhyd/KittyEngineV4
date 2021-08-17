@@ -18,8 +18,11 @@ int main()
 
 	Board board;
 	board.ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-	board.GenerateMoves(board.side_to_move);
+	vector<Move> moves = board.GenerateMoves(board.boardstate.side_to_move);
+	for (Move move : moves)
+	{
+		move.PrintMove();
+		cout << '\n';
+	}
 
-	Move move(E2, E4, WHITE_PAWN, WHITE_QUEEN, Move::DOUBLE_PUSH_FLAG);
-	move.PrintMove();
 }
