@@ -49,7 +49,7 @@ int FenToPiece(char FEN)
 
 int GetRank(int square)
 {
-	return 8 - (square >> 3);
+	return square >> 3;
 }
 int GetFile(int square)
 {
@@ -176,7 +176,7 @@ vector<Move> Board::GenerateMoves(int side)
 	}
 	
 
-	Bitboard double_pawn_push = (side == WHITE ? pawn_push >> 8 : pawn_push << 8) & not_occupancy;
+	Bitboard double_pawn_push = (side == WHITE ? (pawn_push & GET_RANK_3_MASK) >> 8 : (pawn_push & GET_RANK_6_MASK) << 8) & not_occupancy;
 	for (Bitboard cpy_double_pawn_push = double_pawn_push; cpy_double_pawn_push; cpy_double_pawn_push.PopBit())
 	{
 		int dest_square = cpy_double_pawn_push.GetLeastSigBit();
@@ -187,7 +187,7 @@ vector<Move> Board::GenerateMoves(int side)
 
 	Bitboard pawn_capture = 0;
 	if (side == WHITE) pawn_capture = this->boardstate.bitboard[pawn] >> 9 & this->boardstate.occupancies[!side] & FILTER_H_FILE_MASK | this->boardstate.bitboard[pawn] >> 7 & this->boardstate.occupancies[!side] & FILTER_A_FILE_MASK;
-	else pawn_capture = this->boardstate.bitboard[pawn] >> 7 & this->boardstate.occupancies[!side] & FILTER_H_FILE_MASK | this->boardstate.bitboard[pawn] >> 9 & this->boardstate.occupancies[!side] & FILTER_A_FILE_MASK;
+	else pawn_capture = this->boardstate.bitboard[pawn] << 7 & this->boardstate.occupancies[!side] & FILTER_H_FILE_MASK | this->boardstate.bitboard[pawn] << 9 & this->boardstate.occupancies[!side] & FILTER_A_FILE_MASK;
 
 	while (pawn_capture)
 	{
@@ -268,16 +268,20 @@ vector<Move> Board::GenerateMoves(int side)
 
 	for (int castle_type = KING_SIDE; castle_type <= QUEEN_SIDE; ++castle_type)
 	{
-		//check the occupancy
-		if ((this->boardstate.occupancies[BOTH] & CASTLE_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
+		//check for the permission
+		if (this->boardstate.castle & CASTLE_PERMISSION_REQUIREMENT_TABLE[side][castle_type])
 		{
-			//king and the adjacent squares can not be in checked
-			int adj_square = (castle_type == KING_SIDE ? king_square + 1 : king_square - 1);
-			int dest_square = (castle_type == KING_SIDE ? king_square + 2 : king_square - 2);
-
-			if (!IsSquareAttacked(king_square, !side) && !IsSquareAttacked(adj_square, !side))
+			//check the occupancy
+			if ((this->boardstate.occupancies[BOTH] & CASTLE_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
 			{
-				pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CASTLING_FLAG));
+				//king and the adjacent squares can not be in checked
+				int adj_square = (castle_type == KING_SIDE ? king_square + 1 : king_square - 1);
+				int dest_square = (castle_type == KING_SIDE ? king_square + 2 : king_square - 2);
+
+				if (!IsSquareAttacked(king_square, !side) && !IsSquareAttacked(adj_square, !side))
+				{
+					pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CASTLING_FLAG));
+				}
 			}
 		}
 	}
@@ -352,13 +356,14 @@ bool Board::MakeMove(Move move)
 	int source_square = move.GetSource();
 	int dest_square = move.GetDest();
 	int moving_piece = move.GetPiece();
+	int promoted_piece = move.GetPromotedPiece();
 
 	this->boardstate.bitboard[moving_piece].ClearBit(source_square);
 	this->boardstate.bitboard[moving_piece].SetBit(dest_square);
 
 	if (move.IsCapture())
 	{
-		for (int captured_piece = PIECE_LIST_TABLE[!this->boardstate.side_to_move][0]; captured_piece <= PIECE_LIST_TABLE[!this->boardstate.side_to_move][1]; ++captured_piece)
+		for (int captured_piece = PIECE_LIST_TABLE[!this->boardstate.side_to_move][PAWN]; captured_piece <= PIECE_LIST_TABLE[!this->boardstate.side_to_move][QUEEN]; ++captured_piece)
 		{
 			if (this->boardstate.bitboard[captured_piece].GetBit(dest_square))
 			{
@@ -368,9 +373,100 @@ bool Board::MakeMove(Move move)
 		}
 	}
 
-	//update the occupancies
+	if (promoted_piece)
+	{
+		this->boardstate.bitboard[moving_piece].ClearBit(dest_square);
+		this->boardstate.bitboard[promoted_piece].SetBit(dest_square);
 
+		//occupancy stays the same
+	}
+	
+	if (move.IsEnpassant())
+	{
+		int pawn = PIECE_LIST_TABLE[!this->boardstate.side_to_move][PAWN];
+		this->boardstate.bitboard[pawn].ClearBit(this->boardstate.enpassant_square);
+	}
+
+	if (move.IsDoublePush()) this->boardstate.enpassant_square = (this->boardstate.side_to_move == WHITE ? source_square - 8 : source_square + 8);
+	else this->boardstate.enpassant_square = INVALID_SQUARE;
+
+	if (move.IsCastling())
+	{
+		int rook = PIECE_LIST_TABLE[this->boardstate.side_to_move][ROOK];
+		int rook_source = 0, rook_dest = 0;
+		
+		switch (dest_square)
+		{
+		case G1: rook_source = H1; rook_dest = F1; break;
+		case C1: rook_source = A1; rook_dest = D1; break;
+		case G8: rook_source = H8; rook_dest = F8; break;
+		case C8: rook_source = A8; rook_dest = D8; break;
+		}
+
+		//flip bit is cheaper
+		this->boardstate.bitboard[rook].FlipBit(rook_source);
+		this->boardstate.bitboard[rook].FlipBit(rook_dest);
+	}
+
+	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[source_square];
+	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[dest_square];
+
+
+
+	//update the occupancies
+	this->boardstate.occupancies[WHITE] = 0;
+	this->boardstate.occupancies[BLACK] = 0;
+	for (int piece = WHITE_PAWN; piece <= WHITE_KING; ++piece)
+	{
+		this->boardstate.occupancies[WHITE] |= this->boardstate.bitboard[piece];
+	}
+	for (int piece = BLACK_PAWN; piece <= BLACK_KING; ++piece)
+	{
+		this->boardstate.occupancies[BLACK] |= this->boardstate.bitboard[piece];
+	}
+	this->boardstate.occupancies[BOTH] = this->boardstate.occupancies[WHITE] | this->boardstate.occupancies[BLACK];
+
+
+
+	//check for check
+	int king = PIECE_LIST_TABLE[this->boardstate.side_to_move][KING];
+	int king_square = this->boardstate.bitboard[king].GetLeastSigBit();
+
+	this->boardstate.side_to_move = !this->boardstate.side_to_move;
+	if (IsSquareAttacked(king_square, this->boardstate.side_to_move))
+	{
+		this->boardstate = this->boardstate_history.Back();
+		this->boardstate_history.PopBack();
+		return false;
+	}
 	return true;
+}
+
+
+
+void Board::PerfTest(int depth, int& node_visited)
+{
+	if (depth == 0)
+	{
+		++node_visited;
+		return;
+	}
+
+	vector<Move> pseudo_moves = GenerateMoves(this->boardstate.side_to_move);
+	if (pseudo_moves.empty()) return;
+
+
+	for (Move move : pseudo_moves)
+	{
+		if (MakeMove(move))
+		{
+			PerfTest(depth - 1, node_visited);
+			this->boardstate = this->boardstate_history.Back();
+			this->boardstate_history.PopBack();
+		}
+	}
+
+	return;
 }
 
 
@@ -408,6 +504,7 @@ void Board::PrintBoard()
 	else cout << "Black to move:\n";
 }
 
-Board::Board() : boardstate_history(256)
+Board::Board(const string& FEN) : boardstate_history(256)
 {
+	this->ParseFEN(FEN);
 }
