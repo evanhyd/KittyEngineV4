@@ -31,7 +31,7 @@ public:
     void PrintMove();
 
     Move() = default;
-    Move(int source_square, int dest_square, int piece, int promoted_piece = 0, int flag = 0);
+    Move(int source_square, int dest_square, int piece, int promoted_piece_type = 0, int flag = 0);
 
 
     static constexpr int CAPTURE_FLAG = 0x100000;

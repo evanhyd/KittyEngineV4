@@ -43,7 +43,7 @@ void Move::PrintMove()
 	if (promoted_piece) cout << PieceToFen(promoted_piece);
 }
 
-Move::Move(int source_square, int dest_square, int piece, int promoted_piece, int flag) : 
-	move(source_square | dest_square << 6 | piece << 12 | promoted_piece << 16 | flag)
+Move::Move(int source_square, int dest_square, int piece, int promoted_piece_type, int flag) : 
+	move(source_square | dest_square << 6 | piece << 12 | promoted_piece_type << 16 | flag)
 {
 }

@@ -54,6 +54,7 @@ constexpr U64 CASTLE_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 100880
 
 char PieceToFen(int piece);
 int FenToPiece(char FEN);
+int FenToPieceType(char FEN);
 int GetRank(int square);
 int GetFile(int square);
 
@@ -65,16 +66,21 @@ public:
 	FastStack boardstate_history;
 
 
-	void ParseFEN(const std::string& str);
+	void ParseFEN(const std::string& FEN);
+	bool ParseMove(std::string& move_str);
 
 	bool IsSquareAttacked(int square, int attack_side);
 
-	std::vector<Move> GenerateMoves(int side);
+	std::vector<Move> GenerateMoves();
 	bool MakeMove(Move move);
+	void SaveState();
+	void RestoreState();
 
 	void PerfTest(int depth, int& node_visited);
 
 	void PrintBoard();
+
+	void GUI();
 
 	Board(const string& FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 };
