@@ -4,9 +4,9 @@
 #include "board.h"
 #include <iostream>
 #include <unordered_map>
+#include <fstream>
 
-using std::cout;
-using std::cin;
+using namespace std;
 
 
 
@@ -16,14 +16,11 @@ int main()
 	InitLeaperAttackTable();
 	InitSliderAttackTable();
 
-	//8/Pk6/8/8/8/8/6Kp/8 b - - 0 1
-	Board board("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-	for (int i = 1; i <= 6; ++i)
-	{
-		int node = 0;
-		board.PerfTest(i, node);
-		cout << node << '\n';
-	}
+	Board board;
+	
+	board.ParseFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+	int node = 0;
+	board.PerfTest(4, node);
+	cout << node;
 
 }

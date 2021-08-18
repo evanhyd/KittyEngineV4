@@ -49,7 +49,7 @@ constexpr int CASTLING_PERMISSION_FILTER_TABLE[64] = {
 };
 
 constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
-constexpr U64 CASTLE_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 432345564227567616}, {96, 14} }; //[side][castle_type]
+constexpr U64 CASTLE_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]
 
 
 char PieceToFen(int piece);

@@ -23,7 +23,7 @@ public:
     int GetSource();
     int GetDest();
     int GetPiece();
-    int GetPromotedPiece();
+    int GetPromotedPieceType();
     bool IsCapture();
     bool IsDoublePush();
     bool IsEnpassant();

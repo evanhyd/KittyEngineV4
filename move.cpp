@@ -16,7 +16,7 @@ int Move::GetPiece()
 {
 	return this->move >> 12 & 0xf;
 }
-int Move::GetPromotedPiece()
+int Move::GetPromotedPieceType()
 {
 	return this->move >> 16 & 0xf;
 }
@@ -39,7 +39,7 @@ bool Move::IsCastling()
 void Move::PrintMove()
 {
 	cout << SQUARE_STR_TABLE[GetSource()] << SQUARE_STR_TABLE[GetDest()];
-	int promoted_piece = GetPromotedPiece();
+	int promoted_piece = GetPromotedPieceType();
 	if (promoted_piece) cout << PieceToFen(promoted_piece);
 }
 
