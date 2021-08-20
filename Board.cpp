@@ -144,18 +144,14 @@ void Board::ParseFEN(const string& FEN)
 	iter += 2;
 }
 
-bool Board::ParseMove(string& move_str)
+bool Board::ParseMove(const string& move_str)
 {
 	if (move_str.size() < 4) return false;
 
-	for (int i = 0; i < 4; ++i)
-	{
-		move_str[i] = tolower(move_str[i]);
-	}
-	int source_file = move_str[0] - 'a';
-	int source_rank = move_str[1] - '0';
-	int dest_file = move_str[2] - 'a';
-	int dest_rank = move_str[3] - '0';
+	int source_file = tolower(move_str[0]) - 'a';
+	int source_rank = tolower(move_str[1]) - '0';
+	int dest_file = tolower(move_str[2]) - 'a';
+	int dest_rank = tolower(move_str[3]) - '0';
 	int promoted_piece_type = 0;
 	if (move_str.size() >= 5) promoted_piece_type = FenToPieceType(move_str[4]);
 
@@ -173,6 +169,39 @@ bool Board::ParseMove(string& move_str)
 	}
 
 	return false;
+}
+
+
+void Board::ParsePosition(const std::string& position_str)
+{
+	size_t index = 9;
+
+	if (position_str.substr(index, 8) == "startpos")
+	{
+		index += 9;
+		ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+	}
+	else if (position_str.substr(index, 3) == "fen")
+	{
+		index += 4;
+		ParseFEN(position_str.substr(index));
+	}
+
+	/*
+	if (index < position_str.size())
+	{
+		//4 bytes assembly level KMP
+		//index = strstr(position_str.c_str(), "move") - position_str.c_str();
+		index = position_str.find("move");
+		if (index != string::npos)
+		{
+			index += 5;
+			while (true)
+			{
+				size_t space_index = position_str.find(" ");
+			}
+		}
+	}*/
 }
 
 
@@ -557,7 +586,7 @@ void Board::PrintBoard()
 	cout << "  -------------------------------\n   a   b   c   d   e   f   g   h\n";
 
 	cout << "Castle: " << this->boardstate.castle << '\n';
-	cout << "Enpassant: " << this->boardstate.enpassant_square << '\n';
+	cout << "Enpassant: " << (this->boardstate.enpassant_square != INVALID_SQUARE ? SQUARE_STR_TABLE[this->boardstate.enpassant_square] : "empty") << '\n';
 
 	if (this->boardstate.side_to_move == WHITE) cout << "White to move:\n";
 	else cout << "Black to move:\n";

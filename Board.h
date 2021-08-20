@@ -67,7 +67,8 @@ public:
 
 
 	void ParseFEN(const std::string& FEN);
-	bool ParseMove(std::string& move_str);
+	bool ParseMove(const std::string& move_str);
+	void ParsePosition(const std::string& position_str);
 
 	bool IsSquareAttacked(int square, int attack_side);
 

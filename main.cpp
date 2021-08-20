@@ -18,9 +18,7 @@ int main()
 
 	Board board;
 	
-	board.ParseFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
-	int node = 0;
-	board.PerfTest(5, node);
-	cout << node;
+	board.ParsePosition("position fen rnbqkbnr/p4ppp/8/Ppppp3/3P1P2/8/1PP1P1PP/RNBQKBNR w KQkq b6 0 5");
 
+	board.PrintBoard();
 }
