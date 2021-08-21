@@ -57,6 +57,8 @@ int FenToPiece(char FEN);
 int FenToPieceType(char FEN);
 int GetRank(int square);
 int GetFile(int square);
+int ToRank(char c);
+int ToFile(char c);
 
 class Board
 {
@@ -69,6 +71,8 @@ public:
 	void ParseFEN(const std::string& FEN);
 	bool ParseMove(const std::string& move_str);
 	void ParsePosition(const std::string& position_str);
+	void ParseGo(const std::string& go_str);
+	void UCI();
 
 	bool IsSquareAttacked(int square, int attack_side);
 

@@ -69,6 +69,9 @@ int FenToPieceType(char FEN)
 	case 'K':
 	case 'k':
 		return KING;
+
+	default:
+		return 0;
 	}
 }
 
@@ -80,7 +83,14 @@ int GetFile(int square)
 {
 	return square & 7;
 }
-
+int ToRank(char c)
+{
+	return 8 - (c - '0');
+}
+int ToFile(char c)
+{
+	return tolower(c) - 'a';
+}
 
 
 void Board::ParseFEN(const string& FEN)
@@ -131,9 +141,9 @@ void Board::ParseFEN(const string& FEN)
 
 	if (*iter != '-')
 	{
-		int file = *iter - 'a';
+		int file = ToFile(*iter);
 		++iter;
-		int rank = 8 - (*iter - '0');
+		int rank = ToRank(*iter);
 		this->boardstate.enpassant_square = rank * 8 + file;
 	}
 	else
@@ -148,10 +158,10 @@ bool Board::ParseMove(const string& move_str)
 {
 	if (move_str.size() < 4) return false;
 
-	int source_file = tolower(move_str[0]) - 'a';
-	int source_rank = tolower(move_str[1]) - '0';
-	int dest_file = tolower(move_str[2]) - 'a';
-	int dest_rank = tolower(move_str[3]) - '0';
+	int source_file = ToFile(move_str[0]);
+	int source_rank = ToRank(move_str[1]);
+	int dest_file = ToFile(move_str[2]);
+	int dest_rank = ToRank(move_str[3]);
 	int promoted_piece_type = 0;
 	if (move_str.size() >= 5) promoted_piece_type = FenToPieceType(move_str[4]);
 
@@ -187,23 +197,65 @@ void Board::ParsePosition(const std::string& position_str)
 		ParseFEN(position_str.substr(index));
 	}
 
-	/*
+	
 	if (index < position_str.size())
 	{
 		//4 bytes assembly level KMP
 		//index = strstr(position_str.c_str(), "move") - position_str.c_str();
-		index = position_str.find("move");
+		index = position_str.find("moves");
 		if (index != string::npos)
 		{
 			index += 5;
-			while (true)
+			while (index != string::npos)
 			{
-				size_t space_index = position_str.find(" ");
+				++index;
+				bool parsed_success = ParseMove(position_str.substr(index));
+
+				if (parsed_success) index = position_str.find(" ", index);
+				else break;
 			}
 		}
-	}*/
+	}
 }
 
+void Board::ParseGo(const std::string& go_str)
+{
+	size_t index = 0;
+	index = go_str.find("depth");
+	if (index != string::npos)
+	{
+		index += 6;
+		int search_depth = stoi(go_str.substr(index));
+		cout << search_depth << '\n';
+	}
+}
+
+void Board::UCI()
+{
+	cin.tie(nullptr)->sync_with_stdio(false);
+	cout << "id name KittyEngine\n";
+	cout << "id author UnboxTheCat\n";
+	cout << "uciok\n";
+
+	string command;
+	while (true)
+	{
+		getline(cin, command);
+		if (command == "uci")
+		{
+			cout << "id name KittyEngine\n";
+			cout << "id author UnboxTheCat\n";
+			cout << "uciok\n";
+		}
+		else if (command == "isready") cout << "readyok\n";
+		else if (command.substr(0, 8) == "position") ParsePosition(command);
+		else if (command.substr(0, 10) == "ucinewgame") ParsePosition("position startpos");
+		else if (command.substr(0, 2) == "go") ParseGo(command);
+		else if (command == "quit") break;
+
+		PrintBoard();
+	}
+}
 
 
 bool Board::IsSquareAttacked(int square, int attack_side)
@@ -440,6 +492,8 @@ bool Board::MakeMove(Move move)
 
 	this->boardstate.bitboard[moving_piece].ClearBit(source_square);
 	this->boardstate.bitboard[moving_piece].SetBit(dest_square);
+	this->boardstate.occupancies[side].FlipBit(source_square);
+	this->boardstate.occupancies[side].FlipBit(dest_square);
 
 	if (move.IsCapture())
 	{
@@ -448,6 +502,7 @@ bool Board::MakeMove(Move move)
 			if (this->boardstate.bitboard[captured_piece].GetBit(dest_square))
 			{
 				this->boardstate.bitboard[captured_piece].ClearBit(dest_square);
+				this->boardstate.occupancies[!side].FlipBit(dest_square);
 				break;
 			}
 		}
@@ -467,6 +522,7 @@ bool Board::MakeMove(Move move)
 		int enpassanted_pawn_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
 		this->boardstate.bitboard[enpassanted_pawn].ClearBit(enpassanted_pawn_square);
+		this->boardstate.occupancies[!side].FlipBit(enpassanted_pawn_square);
 	}
 
 	if (move.IsDoublePush()) this->boardstate.enpassant_square = (side == WHITE ? source_square - 8 : source_square + 8);
@@ -488,26 +544,16 @@ bool Board::MakeMove(Move move)
 		//flip bit is cheaper
 		this->boardstate.bitboard[rook].ClearBit(rook_source);
 		this->boardstate.bitboard[rook].SetBit(rook_dest);
+		this->boardstate.occupancies[side].FlipBit(rook_source);
+		this->boardstate.occupancies[side].FlipBit(rook_dest);
 	}
 
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[source_square];
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[dest_square];
 
 
-
 	//update the occupancies
-	this->boardstate.occupancies[WHITE] = 0;
-	this->boardstate.occupancies[BLACK] = 0;
-	for (int piece = WHITE_PAWN; piece <= WHITE_KING; ++piece)
-	{
-		this->boardstate.occupancies[WHITE] |= this->boardstate.bitboard[piece];
-	}
-	for (int piece = BLACK_PAWN; piece <= BLACK_KING; ++piece)
-	{
-		this->boardstate.occupancies[BLACK] |= this->boardstate.bitboard[piece];
-	}
 	this->boardstate.occupancies[BOTH] = this->boardstate.occupancies[WHITE] | this->boardstate.occupancies[BLACK];
-
 
 
 	//check for check
