@@ -1,9 +1,9 @@
 #include "board.h"
 #include "piece_attack_table.h"
 #include <iostream>
-#include <cctype>
-#include <vector>
+#include <algorithm>
 #include <chrono>
+#include <cctype>
 
 using namespace std;
 using namespace std::chrono;
@@ -249,14 +249,11 @@ void Board::ParseGo(const string& go_str)
 		int max_depth = stoi(go_str.substr(index));
 
 		node = 0;
-		this->best_move.Clear();
-
-		high_resolution_clock::time_point timer = high_resolution_clock::now();
+		this->best_move.ClearMove();
 		int score = Search(max_depth);
-		auto duration = duration_cast<milliseconds>(high_resolution_clock::now() - timer);
 
 		if (this->boardstate.side_to_move == BLACK) score = -score;
-		if (!this->best_move.IsEmpty()) MakePseudoMove(this->best_move);
+		if (!this->best_move.IsMoveEmpty()) MakePseudoMove(this->best_move);
 
 		cout << "info score cp " << score << " depth " << max_depth << " nodes " << node << '\n';
 	}
@@ -323,6 +320,24 @@ bool Board::IsKingAttacked()
 	int kign_square = this->boardstate.bitboard[king].GetLeastSigBit();
 	return IsSquareAttacked(kign_square, !king_side);
 }
+
+int Board::GetCapturedPiece(Move move)
+{
+	int moved_piece = move.GetMovedPiece();
+	int side = PIECE_SIDE_TABLE[moved_piece];
+	int dest_square = move.GetDest();
+
+	for (int captured_piece = PIECE_LIST_TABLE[!side][PAWN]; captured_piece <= PIECE_LIST_TABLE[!side][QUEEN]; ++captured_piece)
+	{
+		if (this->boardstate.bitboard[captured_piece].GetBit(dest_square)) return captured_piece;
+	}
+
+	return -1;
+}
+
+
+
+
 
 
 vector<Move> Board::GetPseudoMoves()
@@ -525,7 +540,7 @@ bool Board::MakePseudoMove(Move move)
 
 	int source_square = move.GetSource();
 	int dest_square = move.GetDest();
-	int moving_piece = move.GetPiece();
+	int moving_piece = move.GetMovedPiece();
 
 	this->boardstate.bitboard[moving_piece].FlipBit(source_square);
 	this->boardstate.bitboard[moving_piece].FlipBit(dest_square);
@@ -534,15 +549,9 @@ bool Board::MakePseudoMove(Move move)
 
 	if (move.IsCapture())
 	{
-		for (int captured_piece = PIECE_LIST_TABLE[!side][PAWN]; captured_piece <= PIECE_LIST_TABLE[!side][QUEEN]; ++captured_piece)
-		{
-			if (this->boardstate.bitboard[captured_piece].GetBit(dest_square))
-			{
-				this->boardstate.bitboard[captured_piece].FlipBit(dest_square);
-				this->boardstate.occupancies[!side].FlipBit(dest_square);
-				break;
-			}
-		}
+		int captured_piece = GetCapturedPiece(move);
+		this->boardstate.bitboard[captured_piece].FlipBit(dest_square);
+		this->boardstate.occupancies[!side].FlipBit(dest_square);
 	}
 
 	int promoted_piece_type = move.GetPromotedPieceType();
@@ -699,6 +708,26 @@ int Board::Evaluate()
 	return this->boardstate.side_to_move == WHITE ? score : -score;
 }
 
+void Board::SortMoves(vector<Move>& moves)
+{
+	int side = this->boardstate.side_to_move;
+
+	for (auto& move : moves)
+	{
+		if (move.IsCapture())
+		{
+			int moved_piece = move.GetMovedPiece();
+			int captured_piece = GetCapturedPiece(move);
+			move.SetPriority(Move::CAPTURE_PRIORITY_TABLE[moved_piece][captured_piece]);
+		}
+		//as long as it is a pawn captures pawn
+		else if (move.IsEnpassant()) move.SetPriority(Move::ENPASSANT_PRIORITY);
+		else move.SetPriority(Move::QUIET_MOVE_PRIORITY);
+	}
+
+	sort(moves.begin(), moves.end());
+}
+
 void Board::PerfTest(int depth, int& visited_nodes)
 {
 	if (depth == 0)
@@ -730,6 +759,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 	}
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
+	SortMoves(pseudo_moves);
 
 	bool in_check = IsKingAttacked();
 	bool has_legal_move = false;
@@ -770,6 +800,7 @@ int Board::Quiescence(int alpha, int beta)
 	alpha = max(alpha, score);
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
+	SortMoves(pseudo_moves);
 
 	for (Move pseudo_move : pseudo_moves)
 	{

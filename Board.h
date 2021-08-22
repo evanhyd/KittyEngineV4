@@ -58,6 +58,7 @@ public:
 
 	bool IsSquareAttacked(int square, int attack_side);
 	bool IsKingAttacked();
+	int GetCapturedPiece(Move move);
 
 	std::vector<Move> GetPseudoMoves();
 	bool MakePseudoMove(Move move);
@@ -65,6 +66,7 @@ public:
 	void RestoreState();
 
 	int Evaluate();
+	void SortMoves(std::vector<Move>& moves);
 	void PerfTest(int depth, int& visited_nodes);
 	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX);
 	int Quiescence(int alpha, int beta);
@@ -93,7 +95,7 @@ constexpr int CASTLING_PERMISSION_FILTER_TABLE[64] = {
 	13, 15, 15, 15, 12, 15, 15, 14
 };
 
-
+constexpr int PIECE_SIDE_TABLE[12] = { WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, BLACK, BLACK, BLACK, BLACK, BLACK, BLACK };
 constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
 constexpr U64 CASTLE_GET_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]
 

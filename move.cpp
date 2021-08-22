@@ -4,54 +4,67 @@
 
 using std::cout;
 
-int Move::GetSource()
+int Move::GetSource() const
 {
 	return this->move & 0x3f;
 }
-int Move::GetDest()
+int Move::GetDest() const
 {
 	return this->move >> 6 & 0x3f;
 }
-int Move::GetPiece()
+int Move::GetMovedPiece() const
 {
 	return this->move >> 12 & 0xf;
 }
-int Move::GetPromotedPieceType()
+int Move::GetPromotedPieceType() const
 {
 	return this->move >> 16 & 0xf;
 }
-bool Move::IsCapture()
+bool Move::IsCapture() const
 {
 	return this->move & 0x100000;
 }
-bool Move::IsDoublePush()
+bool Move::IsDoublePush() const
 {
 	return this->move & 0x200000;
 }
-bool Move::IsEnpassant()
+bool Move::IsEnpassant() const
 {
 	return this->move & 0x400000;
 }
-bool Move::IsCastling()
+bool Move::IsCastling() const
 {
 	return this->move & 0x800000;
 }
-bool Move::IsEmpty()
+bool Move::IsMoveEmpty() const
 {
 	return this->move == 0;
 }
-void Move::Clear()
+void Move::ClearMove()
 {
 	this->move = 0;
 }
-void Move::PrintMove()
+void Move::SetPriority(int new_priority)
+{
+	this->priority = new_priority;
+}
+int Move::GetPriority() const
+{
+	return this->priority;
+}
+void Move::PrintMove() const
 {
 	cout << SQUARE_STR_TABLE[GetSource()] << SQUARE_STR_TABLE[GetDest()];
 	int promoted_piece = GetPromotedPieceType();
 	if (promoted_piece) cout << PieceToFen(promoted_piece);
 }
 
+bool Move::operator<(const Move& other)
+{
+	return this->priority >= other.priority;
+}
+
 Move::Move(int source_square, int dest_square, int piece, int promoted_piece_type, int flag) : 
-	move(source_square | dest_square << 6 | piece << 12 | promoted_piece_type << 16 | flag)
+	move(source_square | dest_square << 6 | piece << 12 | promoted_piece_type << 16 | flag), priority(0)
 {
 }
