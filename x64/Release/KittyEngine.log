@@ -1,8 +1,12 @@
-﻿  board.cpp
+﻿  bitboard.cpp
+  board.cpp
   boardstate.cpp
+  fast_stack.cpp
+  magic.cpp
   main.cpp
   move.cpp
   piece_attack_table.cpp
+  random.cpp
   Generating code
   Finished generating code
   KittyEngine.vcxproj -> C:\Users\evanh\Desktop\KittyEngine\x64\Release\KittyEngine.exe

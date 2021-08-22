@@ -36,6 +36,14 @@ bool Move::IsCastling()
 {
 	return this->move & 0x800000;
 }
+bool Move::IsEmpty()
+{
+	return this->move == 0;
+}
+void Move::Clear()
+{
+	this->move = 0;
+}
 void Move::PrintMove()
 {
 	cout << SQUARE_STR_TABLE[GetSource()] << SQUARE_STR_TABLE[GetDest()];

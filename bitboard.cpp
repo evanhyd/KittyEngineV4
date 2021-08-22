@@ -45,17 +45,8 @@ int Bitboard::GetLeastSigBit() const
 {
 	if (this->bitboard == 0) return -1;
 
-	//https://stackoverflow.com/questions/11376288/fast-computing-of-log2-for-64-bit-integers
-	U64 least_sig_set_bit = this->bitboard ^ (this->bitboard & (this->bitboard - 1));
-
-	least_sig_set_bit |= least_sig_set_bit >> 1;
-	least_sig_set_bit |= least_sig_set_bit >> 2;
-	least_sig_set_bit |= least_sig_set_bit >> 4;
-	least_sig_set_bit |= least_sig_set_bit >> 8;
-	least_sig_set_bit |= least_sig_set_bit >> 16;
-	least_sig_set_bit |= least_sig_set_bit >> 32;
-
-	return LOG2_TABLE[(least_sig_set_bit * LOG2_MAGIC) >> 58];
+	//https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication a perfect minimal hashing algorithm with magic sequence
+	return LSB_HASH_TABLE[((this->bitboard ^ (this->bitboard - 1)) * DEBRUIJN64) >> 58];
 }
 
 void Bitboard::PrintBitboard() const

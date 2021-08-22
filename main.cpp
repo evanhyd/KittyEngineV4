@@ -16,5 +16,4 @@ int main()
 
 	Board board;
 	board.UCI();
-
 }

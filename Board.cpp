@@ -3,9 +3,10 @@
 #include <iostream>
 #include <cctype>
 #include <vector>
+#include <chrono>
 
 using namespace std;
-
+using namespace std::chrono;
 
 char PieceToFen(int piece)
 {
@@ -168,12 +169,12 @@ bool Board::ParseMove(const string& move_str)
 	int source_square = source_rank * 8 + source_file;
 	int dest_square = dest_rank * 8 + dest_file;
 
-	vector<Move> pseudo_moves = GenerateMoves();
+	vector<Move> pseudo_moves = GetPseudoMoves();
 	for (Move pseudo_move : pseudo_moves)
 	{
 		if (pseudo_move.GetSource() == source_square && pseudo_move.GetDest() == dest_square && pseudo_move.GetPromotedPieceType() == promoted_piece_type)
 		{
-			if (MakeMove(pseudo_move)) return true;
+			if (MakePseudoMove(pseudo_move)) return true;
 			else return false;
 		}
 	}
@@ -182,7 +183,7 @@ bool Board::ParseMove(const string& move_str)
 }
 
 
-void Board::ParsePosition(const std::string& position_str)
+void Board::ParsePosition(const string& position_str)
 {
 	size_t index = 9;
 
@@ -218,15 +219,46 @@ void Board::ParsePosition(const std::string& position_str)
 	}
 }
 
-void Board::ParseGo(const std::string& go_str)
+void Board::ParsePerfTest(const string& perf_str)
 {
 	size_t index = 0;
-	index = go_str.find("depth");
-	if (index != string::npos)
+	index = perf_str.find("depth") + 6;
+	if (index < string::npos)
 	{
-		index += 6;
-		int search_depth = stoi(go_str.substr(index));
-		cout << search_depth << '\n';
+		int max_depth = stoi(perf_str.substr(index));
+
+		int visited_nodes = 0;
+		high_resolution_clock::time_point timer = high_resolution_clock::now();
+		PerfTest(max_depth, visited_nodes);
+		auto duration = duration_cast<milliseconds>(high_resolution_clock::now() - timer);
+
+		cout << "Node: " << visited_nodes << '\n';
+		cout << "Time: " << duration.count() << " ms\n";
+		cout << "Speed: " << visited_nodes / duration.count() << " knode/s\n";
+	}
+}
+
+int node = 0;
+
+void Board::ParseGo(const string& go_str)
+{
+	size_t index = 0;
+	index = go_str.find("depth") + 6;
+	if (index < string::npos)
+	{
+		int max_depth = stoi(go_str.substr(index));
+
+		node = 0;
+		this->best_move.Clear();
+
+		high_resolution_clock::time_point timer = high_resolution_clock::now();
+		int score = Search(max_depth);
+		auto duration = duration_cast<milliseconds>(high_resolution_clock::now() - timer);
+
+		if (this->boardstate.side_to_move == BLACK) score = -score;
+		if (!this->best_move.IsEmpty()) MakePseudoMove(this->best_move);
+
+		cout << "info score cp " << score << " depth " << max_depth << " nodes " << node << '\n';
 	}
 }
 
@@ -250,8 +282,10 @@ void Board::UCI()
 		else if (command == "isready") cout << "readyok\n";
 		else if (command.substr(0, 8) == "position") ParsePosition(command);
 		else if (command.substr(0, 10) == "ucinewgame") ParsePosition("position startpos");
+		else if (command.substr(0, 5) == "perft") ParsePerfTest(command);
 		else if (command.substr(0, 2) == "go") ParseGo(command);
 		else if (command == "quit") break;
+		else cout << "Invaild command\a\n";
 
 		PrintBoard();
 	}
@@ -282,8 +316,16 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 	return false;
 }
 
+bool Board::IsKingAttacked()
+{
+	int king_side = this->boardstate.side_to_move;
+	int king = PIECE_LIST_TABLE[king_side][KING];
+	int kign_square = this->boardstate.bitboard[king].GetLeastSigBit();
+	return IsSquareAttacked(kign_square, !king_side);
+}
 
-vector<Move> Board::GenerateMoves()
+
+vector<Move> Board::GetPseudoMoves()
 {
 	vector<Move> pseudo_moves;
 	pseudo_moves.reserve(218);
@@ -367,9 +409,6 @@ vector<Move> Board::GenerateMoves()
 
 
 
-
-
-
 	int knight = PIECE_LIST_TABLE[side][KNIGHT];
 	for (Bitboard knight_bitboard = this->boardstate.bitboard[knight]; knight_bitboard; knight_bitboard.PopBit())
 	{
@@ -383,8 +422,6 @@ vector<Move> Board::GenerateMoves()
 			else pseudo_moves.push_back(Move(source_square, dest_square, knight));
 		}
 	}
-
-
 
 
 
@@ -406,7 +443,7 @@ vector<Move> Board::GenerateMoves()
 		if (this->boardstate.castle & CASTLE_PERMISSION_REQUIREMENT_TABLE[side][castle_type])
 		{
 			//check the occupancy
-			if ((this->boardstate.occupancies[BOTH] & CASTLE_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
+			if ((this->boardstate.occupancies[BOTH] & CASTLE_GET_OCCUPANCY_MASK_TABLE[side][castle_type]) == 0)
 			{
 				//king and the adjacent squares can not be in checked
 				int adj_square = (castle_type == KING_SIDE ? king_square + 1 : king_square - 1);
@@ -480,7 +517,7 @@ vector<Move> Board::GenerateMoves()
 	return pseudo_moves;
 }
 
-bool Board::MakeMove(Move move)
+bool Board::MakePseudoMove(Move move)
 {
 	SaveState();
 
@@ -557,16 +594,18 @@ bool Board::MakeMove(Move move)
 
 
 	//check for check
-	int king = PIECE_LIST_TABLE[side][KING];
-	int king_square = this->boardstate.bitboard[king].GetLeastSigBit();
+	bool in_check = IsKingAttacked();
 
-	this->boardstate.side_to_move = !this->boardstate.side_to_move;
-	if (IsSquareAttacked(king_square, this->boardstate.side_to_move))
+	if (in_check)
 	{
 		RestoreState();
 		return false;
 	}
-	return true;
+	else
+	{
+		this->boardstate.side_to_move = !this->boardstate.side_to_move;
+		return true;
+	}
 }
 
 void Board::SaveState()
@@ -590,7 +629,6 @@ int Board::Evaluate()
 	int minor_piece_num[3] = {};
 	int major_piece_num[3] = {};
 
-
 	for (int piece = WHITE_KNIGHT; piece <= WHITE_QUEEN; ++piece)
 	{
 		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
@@ -613,10 +651,10 @@ int Board::Evaluate()
 
 	minor_piece_num[WHITE] = piece_num[WHITE_KNIGHT] + piece_num[WHITE_BISHOP];
 	minor_piece_num[BLACK] = piece_num[BLACK_KNIGHT] + piece_num[BLACK_BISHOP];
+	minor_piece_num[BOTH] = minor_piece_num[WHITE] + minor_piece_num[BLACK];
+
 	major_piece_num[WHITE] = piece_num[WHITE_ROOK] + piece_num[WHITE_QUEEN];
 	major_piece_num[BLACK] = piece_num[BLACK_ROOK] + piece_num[BLACK_QUEEN];
-
-	minor_piece_num[BOTH] = minor_piece_num[WHITE] + minor_piece_num[BLACK];
 	major_piece_num[BOTH] = major_piece_num[WHITE] + major_piece_num[BLACK];
 
 	
@@ -650,37 +688,108 @@ int Board::Evaluate()
 
 
 	
-	if (piece_num[WHITE_PAWN] + piece_num[BLACK_PAWN] == 0 && major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
+	if (piece_num[WHITE_PAWN] == 0 && piece_num[BLACK_PAWN] == 0 && major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
 
 
+	//bishop pair compensation
 	if (piece_num[WHITE_BISHOP] >= 2) score += 50;
-	if (piece_num[BLACK_BISHOP] >= 2) score += 50;
+	if (piece_num[BLACK_BISHOP] >= 2) score -= 50;
 
 
 	return this->boardstate.side_to_move == WHITE ? score : -score;
 }
 
-void Board::PerfTest(int depth, int& node_visited)
+void Board::PerfTest(int depth, int& visited_nodes)
 {
 	if (depth == 0)
 	{
-		++node_visited;
+		++visited_nodes;
 		return;
 	}
 
-	vector<Move> pseudo_moves = GenerateMoves();
+	vector<Move> pseudo_moves = GetPseudoMoves();
 
 	for (Move move : pseudo_moves)
 	{
-		if (MakeMove(move))
+		if (MakePseudoMove(move))
 		{
-			PerfTest(depth - 1, node_visited);
+			PerfTest(depth - 1, visited_nodes);
 			RestoreState();
 		}
 	}
 
 	return;
 }
+
+int Board::Search(int max_depth, int depth, int alpha, int beta)
+{
+	if (depth == max_depth)
+	{
+		++node;
+		return Quiescence(alpha, beta);
+	}
+
+	vector<Move> pseudo_moves = GetPseudoMoves();
+
+	bool in_check = IsKingAttacked();
+	bool has_legal_move = false;
+
+	for (Move pseudo_move : pseudo_moves)
+	{
+		if (MakePseudoMove(pseudo_move))
+		{
+			has_legal_move = true;
+			int score = -Search(max_depth, depth + 1, -beta, -alpha);
+			RestoreState();
+
+			if (score >= beta) return beta;
+
+			if (score > alpha)
+			{
+				alpha = score;
+				if (depth == 0) this->best_move = pseudo_move;
+			}
+		}
+	}
+
+	if (!has_legal_move)
+	{
+		//checkmate or draw
+		if (in_check) return -1000000 + depth;
+		else return 0;
+	}
+
+	return alpha;
+}
+
+int Board::Quiescence(int alpha, int beta)
+{
+	int score = Evaluate();
+
+	if (score >= beta) return beta;
+	alpha = max(alpha, score);
+
+	vector<Move> pseudo_moves = GetPseudoMoves();
+
+	for (Move pseudo_move : pseudo_moves)
+	{
+		if (pseudo_move.IsCapture() || pseudo_move.IsEnpassant())
+		{
+			if (MakePseudoMove(pseudo_move))
+			{
+				int score = -Quiescence(-beta, -alpha);
+				RestoreState();
+
+				if (score >= beta) return beta;
+				alpha = max(alpha, score);
+			}
+		}
+	}
+
+	return alpha;
+}
+
+
 
 
 void Board::PrintBoard()
@@ -715,13 +824,6 @@ void Board::PrintBoard()
 
 	if (this->boardstate.side_to_move == WHITE) cout << "White to move:\n";
 	else cout << "Black to move:\n";
-}
-
-
-
-void Board::GUI()
-{
-
 }
 
 

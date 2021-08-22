@@ -29,6 +29,8 @@ public:
     bool IsEnpassant();
     bool IsCastling();
     void PrintMove();
+    bool IsEmpty();
+    void Clear();
 
     Move() = default;
     Move(int source_square, int dest_square, int piece, int promoted_piece_type = 0, int flag = 0);

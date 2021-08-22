@@ -46,27 +46,30 @@ public:
 
 	Boardstate boardstate;
 	FastStack boardstate_history;
+	Move best_move;
 
 
 	void ParseFEN(const std::string& FEN);
 	bool ParseMove(const std::string& move_str);
 	void ParsePosition(const std::string& position_str);
 	void ParseGo(const std::string& go_str);
+	void ParsePerfTest(const std::string& go_str);
 	void UCI();
 
 	bool IsSquareAttacked(int square, int attack_side);
+	bool IsKingAttacked();
 
-	std::vector<Move> GenerateMoves();
-	bool MakeMove(Move move);
+	std::vector<Move> GetPseudoMoves();
+	bool MakePseudoMove(Move move);
 	void SaveState();
 	void RestoreState();
 
 	int Evaluate();
-	void PerfTest(int depth, int& node_visited);
+	void PerfTest(int depth, int& visited_nodes);
+	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX);
+	int Quiescence(int alpha, int beta);
 
 	void PrintBoard();
-
-	void GUI();
 
 	Board(const string& FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 };
@@ -92,7 +95,7 @@ constexpr int CASTLING_PERMISSION_FILTER_TABLE[64] = {
 
 
 constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
-constexpr U64 CASTLE_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]
+constexpr U64 CASTLE_GET_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]
 
 
 constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 100000, 100, 330, 345, 500, 975, 100000 };
@@ -100,12 +103,12 @@ constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
 {
 	{//white pawn
 		 0,  0,  0,  0,  0,  0,  0,  0,
-		35, 35, 37, 50, 50, 37, 35, 35,
-		25, 25, 27, 30, 30, 27, 25, 25,
-		12, 12, 15, 25, 25, 15, 12, 12,
-		 5,  5,  5, 20, 20,  5,  5,  5,
-		 5,  0, -8,  0,  0,-10,  0,  5,
-		 5, 10,  0,-20,-20,  0, 10,  5,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
 		 0,  0,  0,  0,  0,  0,  0,  0
 	},
 	{//white knight
@@ -160,12 +163,12 @@ constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
 	},
 	{//black pawn
 		 0,  0,  0,  0,  0,  0,  0,  0,
-		 5, 10,  0,-20,-20,  0, 10,  5,
-		 5,  0, -8,  0,  0,-10,  0,  5,
-		 5,  5,  5, 20, 20,  5,  5,  5,
-		12, 12, 15, 25, 25, 15, 12, 12,
-		25, 25, 27, 30, 30, 27, 25, 25,
-		35, 35, 37, 50, 50, 37, 35, 35,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
+		 0,  0,  0,  0,  0,  0,  0,  0,
 		 0,  0,  0,  0,  0,  0,  0,  0
 	},
 	{//black knight
@@ -283,14 +286,14 @@ constexpr int PIECE_KING_POSITIONAL_VALUE_TABLE[2][2][64] =
 		     20, 30,  0,  0,  0,  0, 30, 20
 	    },
 	    {//WHITE KING END GAME
-	    	-40,-20,-20,-20,-20,-20,-20,-40,
-	    	-20,-10,-10,-10,-10,-10,-10,-20,
-	    	-20,-10, 10, 10, 10, 10,-10,-20,
-	    	-20,-10, 10, 15, 15, 10,-10,-20,
-	    	-20,-10, 10, 15, 15, 10,-10,-20,
-	    	-20,-10, 10, 10, 10, 10,-10,-20,
-	    	-20,-10,-10,-10,-10,-10,-10,-20,
-	    	-40,-20,-20,-20,-20,-20,-20,-40
+			-35,-20,-20,-20,-20,-20,-20,-35,
+			-20,-15,-10,-10,-10,-10,-15,-20,
+			-20,-10, 10, 10, 10, 10,-10,-20,
+			-20,-10, 10, 12, 12, 10,-10,-20,
+			-20,-10, 10, 12, 12, 10,-10,-20,
+			-20,-10, 10, 10, 10, 10,-10,-20,
+			-20,-15,-10,-10,-10,-10,-15,-20,
+			-35,-20,-20,-20,-20,-20,-20,-35
 	    }
 	},
 	{
@@ -305,14 +308,14 @@ constexpr int PIECE_KING_POSITIONAL_VALUE_TABLE[2][2][64] =
 		    -25,-25,-25,-25,-25,-25,-25,-25
 	    },
 	    {//BLACK KING END GAME
-	    	-40,-20,-20,-20,-20,-20,-20,-40,
-	    	-20,-10,-10,-10,-10,-10,-10,-20,
+	    	-35,-20,-20,-20,-20,-20,-20,-35,
+	    	-20,-15,-10,-10,-10,-10,-15,-20,
 	    	-20,-10, 10, 10, 10, 10,-10,-20,
-	    	-20,-10, 10, 15, 15, 10,-10,-20,
-	    	-20,-10, 10, 15, 15, 10,-10,-20,
+	    	-20,-10, 10, 12, 12, 10,-10,-20,
+	    	-20,-10, 10, 12, 12, 10,-10,-20,
 	    	-20,-10, 10, 10, 10, 10,-10,-20,
-	    	-20,-10,-10,-10,-10,-10,-10,-20,
-	    	-40,-20,-20,-20,-20,-20,-20,-40
+	    	-20,-15,-10,-10,-10,-10,-15,-20,
+	    	-35,-20,-20,-20,-20,-20,-20,-35
 	    }
 	}
 };
