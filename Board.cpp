@@ -490,8 +490,8 @@ bool Board::MakeMove(Move move)
 	int dest_square = move.GetDest();
 	int moving_piece = move.GetPiece();
 
-	this->boardstate.bitboard[moving_piece].ClearBit(source_square);
-	this->boardstate.bitboard[moving_piece].SetBit(dest_square);
+	this->boardstate.bitboard[moving_piece].FlipBit(source_square);
+	this->boardstate.bitboard[moving_piece].FlipBit(dest_square);
 	this->boardstate.occupancies[side].FlipBit(source_square);
 	this->boardstate.occupancies[side].FlipBit(dest_square);
 
@@ -501,7 +501,7 @@ bool Board::MakeMove(Move move)
 		{
 			if (this->boardstate.bitboard[captured_piece].GetBit(dest_square))
 			{
-				this->boardstate.bitboard[captured_piece].ClearBit(dest_square);
+				this->boardstate.bitboard[captured_piece].FlipBit(dest_square);
 				this->boardstate.occupancies[!side].FlipBit(dest_square);
 				break;
 			}
@@ -512,8 +512,8 @@ bool Board::MakeMove(Move move)
 	if (promoted_piece_type)
 	{
 		int promoted_piece = PIECE_LIST_TABLE[side][promoted_piece_type];
-		this->boardstate.bitboard[moving_piece].ClearBit(dest_square);
-		this->boardstate.bitboard[promoted_piece].SetBit(dest_square);
+		this->boardstate.bitboard[moving_piece].FlipBit(dest_square);
+		this->boardstate.bitboard[promoted_piece].FlipBit(dest_square);
 	}
 	
 	if (move.IsEnpassant())
@@ -521,7 +521,7 @@ bool Board::MakeMove(Move move)
 		int enpassanted_pawn = PIECE_LIST_TABLE[!side][PAWN];
 		int enpassanted_pawn_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
-		this->boardstate.bitboard[enpassanted_pawn].ClearBit(enpassanted_pawn_square);
+		this->boardstate.bitboard[enpassanted_pawn].FlipBit(enpassanted_pawn_square);
 		this->boardstate.occupancies[!side].FlipBit(enpassanted_pawn_square);
 	}
 
@@ -542,8 +542,8 @@ bool Board::MakeMove(Move move)
 		}
 
 		//flip bit is cheaper
-		this->boardstate.bitboard[rook].ClearBit(rook_source);
-		this->boardstate.bitboard[rook].SetBit(rook_dest);
+		this->boardstate.bitboard[rook].FlipBit(rook_source);
+		this->boardstate.bitboard[rook].FlipBit(rook_dest);
 		this->boardstate.occupancies[side].FlipBit(rook_source);
 		this->boardstate.occupancies[side].FlipBit(rook_dest);
 	}
@@ -580,6 +580,85 @@ void Board::RestoreState()
 }
 
 
+
+
+int Board::Evaluate()
+{
+	int score = 0;
+
+	int piece_num[12] = {};
+	int minor_piece_num[3] = {};
+	int major_piece_num[3] = {};
+
+
+	for (int piece = WHITE_KNIGHT; piece <= WHITE_QUEEN; ++piece)
+	{
+		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		{
+			int square = bitboard.GetLeastSigBit();
+			score += PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
+			++piece_num[piece];
+		}
+	}
+
+	for (int piece = BLACK_KNIGHT; piece <= BLACK_QUEEN; ++piece)
+	{
+		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		{
+			int square = bitboard.GetLeastSigBit();
+			score -= PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
+			++piece_num[piece];
+		}
+	}
+
+	minor_piece_num[WHITE] = piece_num[WHITE_KNIGHT] + piece_num[WHITE_BISHOP];
+	minor_piece_num[BLACK] = piece_num[BLACK_KNIGHT] + piece_num[BLACK_BISHOP];
+	major_piece_num[WHITE] = piece_num[WHITE_ROOK] + piece_num[WHITE_QUEEN];
+	major_piece_num[BLACK] = piece_num[BLACK_ROOK] + piece_num[BLACK_QUEEN];
+
+	minor_piece_num[BOTH] = minor_piece_num[WHITE] + minor_piece_num[BLACK];
+	major_piece_num[BOTH] = major_piece_num[WHITE] + major_piece_num[BLACK];
+
+	
+	bool is_end_game = minor_piece_num[!this->boardstate.side_to_move] + major_piece_num[!this->boardstate.side_to_move] <= 3;
+
+
+	for (Bitboard bitboard = this->boardstate.bitboard[WHITE_PAWN]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
+		++piece_num[WHITE_PAWN];
+	}
+
+	for (Bitboard bitboard = this->boardstate.bitboard[BLACK_PAWN]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
+		++piece_num[BLACK_PAWN];
+	}
+	for (Bitboard bitboard = this->boardstate.bitboard[WHITE_KING]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_KING_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
+	}
+
+	for (Bitboard bitboard = this->boardstate.bitboard[BLACK_KING]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_KING_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
+	}
+
+
+	
+	if (piece_num[WHITE_PAWN] + piece_num[BLACK_PAWN] == 0 && major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
+
+
+	if (piece_num[WHITE_BISHOP] >= 2) score += 50;
+	if (piece_num[BLACK_BISHOP] >= 2) score += 50;
+
+
+	return this->boardstate.side_to_move == WHITE ? score : -score;
+}
 
 void Board::PerfTest(int depth, int& node_visited)
 {
