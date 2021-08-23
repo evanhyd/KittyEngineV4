@@ -192,6 +192,11 @@ void Board::ParsePosition(const string& position_str)
 		index += 9;
 		ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 	}
+	else if (position_str.substr(index, 8) == "kiwipete")
+	{
+		index += 9;
+		ParseFEN("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+	}
 	else if (position_str.substr(index, 3) == "fen")
 	{
 		index += 4;
@@ -281,6 +286,7 @@ void Board::UCI()
 		else if (command.substr(0, 10) == "ucinewgame") ParsePosition("position startpos");
 		else if (command.substr(0, 5) == "perft") ParsePerfTest(command);
 		else if (command.substr(0, 2) == "go") ParseGo(command);
+		else if (command.substr(0, 8) == "takeback") RestoreState();
 		else if (command == "quit") break;
 		else cout << "Invaild command\a\n";
 
@@ -718,9 +724,12 @@ void Board::SortMoves(vector<Move>& moves)
 		{
 			int moved_piece = move.GetMovedPiece();
 			int captured_piece = GetCapturedPiece(move);
-			move.SetPriority(Move::CAPTURE_PRIORITY_TABLE[moved_piece][captured_piece]);
+
+			int new_priority = Move::CAPTURE_PRIORITY_TABLE[moved_piece][captured_piece];
+			if (move.GetPromotedPieceType() != 0) new_priority += Move::PROMOTION_PRIORITY;
+			move.SetPriority(new_priority);
 		}
-		//as long as it is a pawn captures pawn
+		else if (move.GetPromotedPieceType() != 0) move.SetPriority(Move::PROMOTION_PRIORITY);
 		else if (move.IsEnpassant()) move.SetPriority(Move::ENPASSANT_PRIORITY);
 		else move.SetPriority(Move::QUIET_MOVE_PRIORITY);
 	}
