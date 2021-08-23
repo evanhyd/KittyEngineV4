@@ -10,7 +10,7 @@ void Boardstate::Clear()
 	fill(begin(this->bitboard), end(this->bitboard), 0);
 	fill(begin(this->occupancies), end(this->occupancies), 0);
 	this->side_to_move = WHITE;
-	this->castle = 0b1111;
+	this->castle = 0;
 	this->enpassant_square = INVALID_SQUARE;
 }
 

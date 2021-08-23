@@ -50,7 +50,7 @@ public:
 
 
 	Move best_move;
-	std::deque<int> killer_heuristic[30];
+	int killer_heuristic[30][2];
 
 
 	void ParseFEN(const std::string& FEN);

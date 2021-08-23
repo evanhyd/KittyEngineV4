@@ -120,10 +120,8 @@ void Board::ParseFEN(const string& FEN)
 
 
 	this->boardstate.side_to_move = (*++iter == 'w' ? WHITE : BLACK);
-
 	iter += 2;
 
-	this->boardstate.castle = 0;
 	while (true)
 	{
 		if (*iter == ' ') break;
@@ -146,10 +144,6 @@ void Board::ParseFEN(const string& FEN)
 		++iter;
 		int rank = ToRank(*iter);
 		this->boardstate.enpassant_square = rank * 8 + file;
-	}
-	else
-	{
-		this->boardstate.enpassant_square = INVALID_SQUARE;
 	}
 
 	iter += 2;
@@ -255,10 +249,7 @@ void Board::ParseGo(const string& go_str)
 
 		node = 0;
 		this->best_move.ClearMove();
-		for (int i = 0; i < 30; ++i)
-		{
-			this->killer_heuristic[i].clear();
-		}
+		fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
 		int score = Search(max_depth);
 
 		if (this->boardstate.side_to_move == BLACK) score = -score;
@@ -734,14 +725,8 @@ void Board::SortMoves(vector<Move>& moves, int depth)
 		else if (move.IsEnpassant()) move.SetPriority(Move::ENPASSANT_PRIORITY);
 		else
 		{
-			for (int i = 0; i < killer_heuristic[depth].size(); ++i)
-			{
-				if (killer_heuristic[depth][i] == move.GetMove())
-				{
-					move.SetPriority(Move::KILLER_MOVE - i);
-					break;
-				}
-			}
+			if (killer_heuristic[depth][0] == move.GetMove()) move.SetPriority(Move::KILLER_MOVE);
+			else if (killer_heuristic[depth][1] == move.GetMove()) move.SetPriority(Move::KILLER_MOVE - 1);
 		}
 	}
 
@@ -794,9 +779,12 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 
 			if (score >= beta)
 			{
-				//record the killer moves that causes fail high
-				killer_heuristic[depth].push_front(pseudo_move.GetMove());
-				if (killer_heuristic[depth].size() >= 10) killer_heuristic[depth].pop_back();
+				//record the quiet killer moves that causes fail high
+				if (!pseudo_move.IsCapture() && !pseudo_move.IsEnpassant())
+				{
+					killer_heuristic[depth][1] = killer_heuristic[depth][0];
+					killer_heuristic[depth][0] = pseudo_move.GetMove();
+				}
 
 				return beta;
 			}
@@ -811,7 +799,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 
 	if (!has_legal_move)
 	{
-		//checkmate or draw
+		//include the depth to force the shorter checkmate
 		if (in_check) return -1000000 + depth;
 		else return 0;
 	}
