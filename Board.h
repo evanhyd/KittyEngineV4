@@ -4,6 +4,7 @@
 #include "move.h"
 #include <string>
 #include <vector>
+#include <deque>
 
 enum : int
 {
@@ -46,7 +47,10 @@ public:
 
 	Boardstate boardstate;
 	FastStack boardstate_history;
+
+
 	Move best_move;
+	std::deque<int> killer_heuristic[30];
 
 
 	void ParseFEN(const std::string& FEN);
@@ -66,7 +70,7 @@ public:
 	void RestoreState();
 
 	int Evaluate();
-	void SortMoves(std::vector<Move>& moves);
+	void SortMoves(std::vector<Move>& moves, int depth);
 	void PerfTest(int depth, int& visited_nodes);
 	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX);
 	int Quiescence(int alpha, int beta);

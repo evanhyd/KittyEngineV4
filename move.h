@@ -29,6 +29,7 @@ public:
     bool IsEnpassant() const;
     bool IsCastling() const;
     bool IsMoveEmpty() const;
+    int GetMove() const;
     void ClearMove();
     void SetPriority(int new_priority);
     int GetPriority() const;
@@ -48,8 +49,9 @@ public:
 
 
     //move ordering
-    static constexpr int QUIET_MOVE_PRIORITY = 50;
-    static constexpr int ENPASSANT_PRIORITY = 106;
+    static constexpr int QUIET_MOVE_PRIORITY = 0;
+    static constexpr int KILLER_MOVE = 99;
+    static constexpr int ENPASSANT_PRIORITY = 105;
     static constexpr int PROMOTION_PRIORITY = 500;
 
     static constexpr int CAPTURE_PRIORITY_TABLE[12][12] = 

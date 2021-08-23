@@ -40,6 +40,10 @@ bool Move::IsMoveEmpty() const
 {
 	return this->move == 0;
 }
+int Move::GetMove() const
+{
+	return this->move;
+}
 void Move::ClearMove()
 {
 	this->move = 0;
@@ -65,6 +69,6 @@ bool Move::operator<(const Move& other)
 }
 
 Move::Move(int source_square, int dest_square, int piece, int promoted_piece_type, int flag) : 
-	move(source_square | dest_square << 6 | piece << 12 | promoted_piece_type << 16 | flag), priority(0)
+	move(source_square | dest_square << 6 | piece << 12 | promoted_piece_type << 16 | flag), priority(QUIET_MOVE_PRIORITY)
 {
 }

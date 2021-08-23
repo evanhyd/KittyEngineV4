@@ -255,6 +255,10 @@ void Board::ParseGo(const string& go_str)
 
 		node = 0;
 		this->best_move.ClearMove();
+		for (int i = 0; i < 30; ++i)
+		{
+			this->killer_heuristic[i].clear();
+		}
 		int score = Search(max_depth);
 
 		if (this->boardstate.side_to_move == BLACK) score = -score;
@@ -714,7 +718,7 @@ int Board::Evaluate()
 	return this->boardstate.side_to_move == WHITE ? score : -score;
 }
 
-void Board::SortMoves(vector<Move>& moves)
+void Board::SortMoves(vector<Move>& moves, int depth)
 {
 	int side = this->boardstate.side_to_move;
 
@@ -722,16 +726,23 @@ void Board::SortMoves(vector<Move>& moves)
 	{
 		if (move.IsCapture())
 		{
-			int moved_piece = move.GetMovedPiece();
-			int captured_piece = GetCapturedPiece(move);
-
-			int new_priority = Move::CAPTURE_PRIORITY_TABLE[moved_piece][captured_piece];
+			int new_priority = Move::CAPTURE_PRIORITY_TABLE[move.GetMovedPiece()][GetCapturedPiece(move)];
 			if (move.GetPromotedPieceType() != 0) new_priority += Move::PROMOTION_PRIORITY;
 			move.SetPriority(new_priority);
 		}
 		else if (move.GetPromotedPieceType() != 0) move.SetPriority(Move::PROMOTION_PRIORITY);
 		else if (move.IsEnpassant()) move.SetPriority(Move::ENPASSANT_PRIORITY);
-		else move.SetPriority(Move::QUIET_MOVE_PRIORITY);
+		else
+		{
+			for (int i = 0; i < killer_heuristic[depth].size(); ++i)
+			{
+				if (killer_heuristic[depth][i] == move.GetMove())
+				{
+					move.SetPriority(Move::KILLER_MOVE - i);
+					break;
+				}
+			}
+		}
 	}
 
 	sort(moves.begin(), moves.end());
@@ -768,7 +779,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 	}
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
-	SortMoves(pseudo_moves);
+	SortMoves(pseudo_moves, depth);
 
 	bool in_check = IsKingAttacked();
 	bool has_legal_move = false;
@@ -781,7 +792,14 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 			int score = -Search(max_depth, depth + 1, -beta, -alpha);
 			RestoreState();
 
-			if (score >= beta) return beta;
+			if (score >= beta)
+			{
+				//record the killer moves that causes fail high
+				killer_heuristic[depth].push_front(pseudo_move.GetMove());
+				if (killer_heuristic[depth].size() >= 10) killer_heuristic[depth].pop_back();
+
+				return beta;
+			}
 
 			if (score > alpha)
 			{
@@ -809,7 +827,9 @@ int Board::Quiescence(int alpha, int beta)
 	alpha = max(alpha, score);
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
-	SortMoves(pseudo_moves);
+
+	//depth does not matter, since it only affect quiet moves ordering
+	SortMoves(pseudo_moves, 0);
 
 	for (Move pseudo_move : pseudo_moves)
 	{
