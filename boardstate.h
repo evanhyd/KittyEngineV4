@@ -14,7 +14,6 @@ public:
 
 	void Clear();
 
-	Boardstate() = default;
-	Boardstate(Bitboard* new_bitboards, Bitboard* new_occupancies, int new_side_to_move, int new_castle, int new_enpassant_square);
+	Boardstate();
 };
 

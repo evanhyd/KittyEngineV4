@@ -70,5 +70,7 @@ public:
         {100, 200, 300, 400, 500, 0, 0, 0, 0, 0, 0, 0,}
     };
 
+    static constexpr int PRINCIPAL_VARIATION_PRIORITY = 10000;
+
 };
 

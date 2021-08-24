@@ -19,7 +19,7 @@ char PieceToAscii(int piece)
 	case WHITE_ROOK:   return 'R';
 	case WHITE_QUEEN:  return 'Q';
 	case WHITE_KING:   return 'K';
-	case BLACK_PAWN:   return 'V';
+	case BLACK_PAWN:   return 'v';
 	case BLACK_KNIGHT: return 'n';
 	case BLACK_BISHOP: return 'b';
 	case BLACK_ROOK:   return 'r';
@@ -113,6 +113,8 @@ int ToFile(char c)
 {
 	return tolower(c) - 'a';
 }
+
+int Board::visited_nodes = 0;
 
 
 void Board::ParseFEN(const string& FEN)
@@ -245,20 +247,18 @@ void Board::ParsePerfTest(const string& perf_str)
 	index = perf_str.find("depth") + 6;
 	if (index < string::npos)
 	{
+		Board::visited_nodes = 0;
 		int max_depth = stoi(perf_str.substr(index));
 
-		int visited_nodes = 0;
 		high_resolution_clock::time_point timer = high_resolution_clock::now();
-		PerfTest(max_depth, visited_nodes);
+		PerfTest(max_depth);
 		auto duration = duration_cast<milliseconds>(high_resolution_clock::now() - timer);
 
-		cout << "Node: " << visited_nodes << '\n';
+		cout << "Node: " << Board::visited_nodes << '\n';
 		cout << "Time: " << duration.count() << " ms\n";
-		cout << "Speed: " << visited_nodes / duration.count() << " knode/s\n";
+		cout << "Speed: " << Board::visited_nodes / duration.count() << " knode/s\n";
 	}
 }
-
-int node = 0;
 
 void Board::ParseGo(const string& go_str)
 {
@@ -266,30 +266,30 @@ void Board::ParseGo(const string& go_str)
 	index = go_str.find("depth") + 6;
 	if (index < string::npos)
 	{
-		int max_depth = stoi(go_str.substr(index));
-
-		//reset
-		node = 0;
+		Board::visited_nodes = 0;
 		fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
+		fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
+		fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
 
-		//serach
-		int score = Search(max_depth);
-
-		//adjust
-		if (this->boardstate.side_to_move == BLACK) score = -score;
-		if(pv_length[0]) MakePseudoMove(this->pv_table[0][0]);
-
-		cout << "info score cp " << score << " depth " << max_depth << " nodes " << node << " pv ";
-		for (int i = 0; i < this->pv_length[0]; ++i)
+		for (int depth = 1, max_depth = stoi(go_str.substr(index)); depth <=  max_depth; ++depth)
 		{
-			pv_table[0][i].PrintMove();
-			cout <<' ';
+			int score = Search(depth);
+
+			if (this->boardstate.side_to_move == BLACK) score = -score;
+
+			cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
+			for (int i = 0; i < this->pv_length[0]; ++i)
+			{
+				pv_table[0][i].PrintMove();
+				cout << ' ';
+			}
+			cout << '\n';
 		}
-		cout << '\n';
 
 		cout << "bestmove ";
 		pv_table[0][0].PrintMove();
 		cout << '\n';
+		if (pv_length[0]) MakePseudoMove(this->pv_table[0][0]);
 	}
 }
 
@@ -665,6 +665,35 @@ void Board::RestoreState()
 
 
 
+
+
+
+
+
+
+
+void Board::PerfTest(int depth)
+{
+	if (depth == 0)
+	{
+		++Board::visited_nodes;
+		return;
+	}
+
+	vector<Move> pseudo_moves = GetPseudoMoves();
+
+	for (Move move : pseudo_moves)
+	{
+		if (MakePseudoMove(move))
+		{
+			PerfTest(depth - 1);
+			RestoreState();
+		}
+	}
+
+	return;
+}
+
 int Board::Evaluate()
 {
 	int score = 0;
@@ -749,16 +778,22 @@ void Board::SortMoves(vector<Move>& moves, int depth)
 	vector<pair<int, Move>> orders(moves.size());
 	for (int i = 0; i < moves.size(); ++i)
 	{
-		if (moves[i].IsCapture()) orders[i].first += Move::CAPTURE_PRIORITY_TABLE[moves[i].GetMovedPiece()][GetCapturedPiece(moves[i])];
-
-		if (moves[i].GetPromotedPieceType() != 0) orders[i].first += Move::PROMOTION_PRIORITY;
-		else if (moves[i].IsEnpassant()) orders[i].first += Move::ENPASSANT_PRIORITY;
+		if (moves[i] == this->pv_table[0][depth])
+		{
+			orders[i].first = Move::PRINCIPAL_VARIATION_PRIORITY;
+		}
 		else
 		{
-			if (killer_heuristic[depth][0] == moves[i]) orders[i].first += Move::KILLER_MOVE;
-			else if (killer_heuristic[depth][1] == moves[i]) orders[i].first += Move::KILLER_MOVE - 1;
-		}
+			if (moves[i].IsCapture()) orders[i].first += Move::CAPTURE_PRIORITY_TABLE[moves[i].GetMovedPiece()][GetCapturedPiece(moves[i])];
 
+			if (moves[i].GetPromotedPieceType() != 0) orders[i].first += Move::PROMOTION_PRIORITY;
+			else if (moves[i].IsEnpassant()) orders[i].first += Move::ENPASSANT_PRIORITY;
+			else
+			{
+				if (killer_heuristic[depth][0] == moves[i]) orders[i].first += Move::KILLER_MOVE;
+				else if (killer_heuristic[depth][1] == moves[i]) orders[i].first += Move::KILLER_MOVE - 1;
+			}
+		}
 		orders[i].second = moves[i];
 	}
 
@@ -770,35 +805,35 @@ void Board::SortMoves(vector<Move>& moves, int depth)
 	}
 }
 
-void Board::PerfTest(int depth, int& visited_nodes)
+void Board::SortNonQuietMoves(std::vector<Move>& moves)
 {
-	if (depth == 0)
+	//priority, move
+	vector<pair<int, Move>> orders(moves.size());
+	for (int i = 0; i < moves.size(); ++i)
 	{
-		++visited_nodes;
-		return;
+		if (moves[i].IsCapture()) orders[i].first += Move::CAPTURE_PRIORITY_TABLE[moves[i].GetMovedPiece()][GetCapturedPiece(moves[i])];
+
+		if (moves[i].GetPromotedPieceType() != 0) orders[i].first += Move::PROMOTION_PRIORITY;
+		else if (moves[i].IsEnpassant()) orders[i].first += Move::ENPASSANT_PRIORITY;
+		orders[i].second = moves[i];
 	}
 
-	vector<Move> pseudo_moves = GetPseudoMoves();
+	sort(orders.rbegin(), orders.rend());
 
-	for (Move move : pseudo_moves)
+	for (int i = 0; i < orders.size(); ++i)
 	{
-		if (MakePseudoMove(move))
-		{
-			PerfTest(depth - 1, visited_nodes);
-			RestoreState();
-		}
+		moves[i] = orders[i].second;
 	}
-
-	return;
 }
 
 int Board::Search(int max_depth, int depth, int alpha, int beta)
 {
 	this->pv_length[depth] = depth;
 
+	//should also check the max_seraching depth to avoid overflow
 	if (depth == max_depth)
 	{
-		++node;
+		++Board::visited_nodes;
 		return Quiescence(alpha, beta);
 	}
 
@@ -807,13 +842,29 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 
 	bool in_check = IsKingAttacked();
 	bool has_legal_move = false;
+	bool has_pv_candidate = false;
 
 	for (Move pseudo_move : pseudo_moves)
 	{
 		if (MakePseudoMove(pseudo_move))
 		{
 			has_legal_move = true;
-			int score = -Search(max_depth, depth + 1, -beta, -alpha);
+
+			int score;
+			if (has_pv_candidate)
+			{
+				//test if the node can improve its alpha in the closed window
+				score = -Search(max_depth, depth + 1, -alpha - 1, -alpha);
+
+				//if the improved alpha does not exceed the beta in open window
+				//then research this node, because it may be a new best move
+				if (score > alpha && score < beta) score = -Search(max_depth, depth + 1, -beta, -alpha);
+			}
+			else
+			{
+				score = -Search(max_depth, depth + 1, -beta, -alpha);
+			}
+
 			RestoreState();
 
 			if (score >= beta)
@@ -832,16 +883,13 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 			{
 				alpha = score;
 
-				//extract the pv moves
+				//found another pv candidate
+				has_pv_candidate = true;
+
+				//update the current move and copy over from child's pv moves
 				int next_depth = depth + 1;
-
-				//copy the child move length
 				this->pv_length[depth] = this->pv_length[next_depth];
-
-				//update the current move
 				this->pv_table[depth][depth] = pseudo_move;
-
-				//copy over from child's pv moves
 				copy(this->pv_table[next_depth] + next_depth, this->pv_table[next_depth] + this->pv_length[next_depth], this->pv_table[depth] + next_depth);
 			}
 		}
@@ -865,9 +913,7 @@ int Board::Quiescence(int alpha, int beta)
 	alpha = max(alpha, score);
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
-
-	//depth does not matter, since it only affect quiet moves ordering
-	SortMoves(pseudo_moves, 0);
+	SortNonQuietMoves(pseudo_moves);
 
 	for (Move pseudo_move : pseudo_moves)
 	{
@@ -926,7 +972,7 @@ void Board::PrintBoard()
 }
 
 
-Board::Board(const string& FEN) : boardstate_history(256)
+Board::Board(const string& FEN) : boardstate_history(MAX_MOVE_PER_ROUND)
 {
 	this->ParseFEN(FEN);
 }

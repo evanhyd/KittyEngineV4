@@ -44,22 +44,26 @@ int ToFile(char c);
 
 class Board
 {
+	static constexpr int MAX_SEARCHING_DEPTH = 30;
+	static constexpr int MAX_MOVE_PER_ROUND = 256;
+	static int visited_nodes;
+
 public:
 
 	Boardstate boardstate;
 	FastStack boardstate_history;
 
 
-	Move killer_heuristic[30][2];
-	int pv_length[64];
-	Move pv_table[64][64]; //searching depth, move index
+	Move killer_heuristic[MAX_SEARCHING_DEPTH][2];
+	int pv_length[MAX_SEARCHING_DEPTH];
+	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
 
 
 	void ParseFEN(const std::string& FEN);
 	bool ParseMove(const std::string& move_str);
 	void ParsePosition(const std::string& position_str);
-	void ParseGo(const std::string& go_str);
 	void ParsePerfTest(const std::string& go_str);
+	void ParseGo(const std::string& go_str);
 	void UCI();
 
 	bool IsSquareAttacked(int square, int attack_side);
@@ -71,15 +75,17 @@ public:
 	void SaveState();
 	void RestoreState();
 
+	void PerfTest(int depth);
 	int Evaluate();
 	void SortMoves(std::vector<Move>& moves, int depth);
-	void PerfTest(int depth, int& visited_nodes);
+	void SortNonQuietMoves(std::vector<Move>& moves);
 	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX);
 	int Quiescence(int alpha, int beta);
 
 	void PrintBoard();
 
 	Board(const string& FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
 };
 
 
