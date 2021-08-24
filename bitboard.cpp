@@ -78,10 +78,8 @@ Bitboard::operator U64&()
 
 Bitboard::Bitboard() : bitboard(0)
 {
-
 }
 
 Bitboard::Bitboard(U64 new_bitboard) : bitboard(new_bitboard)
 {
-	//empty
 }

@@ -33,6 +33,7 @@ enum : int
 };
 
 
+char PieceToAscii(int piece);
 char PieceToFen(int piece);
 int FenToPiece(char FEN);
 int FenToPieceType(char FEN);
@@ -49,8 +50,9 @@ public:
 	FastStack boardstate_history;
 
 
-	Move best_move;
-	int killer_heuristic[30][2];
+	Move killer_heuristic[30][2];
+	int pv_length[64];
+	Move pv_table[64][64]; //searching depth, move index
 
 
 	void ParseFEN(const std::string& FEN);

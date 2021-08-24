@@ -8,6 +8,27 @@
 using namespace std;
 using namespace std::chrono;
 
+
+char PieceToAscii(int piece)
+{
+	switch (piece)
+	{
+	case WHITE_PAWN:   return 'A';
+	case WHITE_KNIGHT: return 'N';
+	case WHITE_BISHOP: return 'B';
+	case WHITE_ROOK:   return 'R';
+	case WHITE_QUEEN:  return 'Q';
+	case WHITE_KING:   return 'K';
+	case BLACK_PAWN:   return 'V';
+	case BLACK_KNIGHT: return 'n';
+	case BLACK_BISHOP: return 'b';
+	case BLACK_ROOK:   return 'r';
+	case BLACK_QUEEN:  return 'q';
+	case BLACK_KING:   return 'k';
+	default:           return ' ';
+	}
+}
+
 char PieceToFen(int piece)
 {
 	switch (piece)
@@ -247,15 +268,28 @@ void Board::ParseGo(const string& go_str)
 	{
 		int max_depth = stoi(go_str.substr(index));
 
+		//reset
 		node = 0;
-		this->best_move.ClearMove();
 		fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
+
+		//serach
 		int score = Search(max_depth);
 
+		//adjust
 		if (this->boardstate.side_to_move == BLACK) score = -score;
-		if (!this->best_move.IsMoveEmpty()) MakePseudoMove(this->best_move);
+		if(pv_length[0]) MakePseudoMove(this->pv_table[0][0]);
 
-		cout << "info score cp " << score << " depth " << max_depth << " nodes " << node << '\n';
+		cout << "info score cp " << score << " depth " << max_depth << " nodes " << node << " pv ";
+		for (int i = 0; i < this->pv_length[0]; ++i)
+		{
+			pv_table[0][i].PrintMove();
+			cout <<' ';
+		}
+		cout << '\n';
+
+		cout << "bestmove ";
+		pv_table[0][0].PrintMove();
+		cout << '\n';
 	}
 }
 
@@ -711,26 +745,29 @@ int Board::Evaluate()
 
 void Board::SortMoves(vector<Move>& moves, int depth)
 {
-	int side = this->boardstate.side_to_move;
-
-	for (auto& move : moves)
+	//priority, move
+	vector<pair<int, Move>> orders(moves.size());
+	for (int i = 0; i < moves.size(); ++i)
 	{
-		if (move.IsCapture())
-		{
-			int new_priority = Move::CAPTURE_PRIORITY_TABLE[move.GetMovedPiece()][GetCapturedPiece(move)];
-			if (move.GetPromotedPieceType() != 0) new_priority += Move::PROMOTION_PRIORITY;
-			move.SetPriority(new_priority);
-		}
-		else if (move.GetPromotedPieceType() != 0) move.SetPriority(Move::PROMOTION_PRIORITY);
-		else if (move.IsEnpassant()) move.SetPriority(Move::ENPASSANT_PRIORITY);
+		if (moves[i].IsCapture()) orders[i].first += Move::CAPTURE_PRIORITY_TABLE[moves[i].GetMovedPiece()][GetCapturedPiece(moves[i])];
+
+		if (moves[i].GetPromotedPieceType() != 0) orders[i].first += Move::PROMOTION_PRIORITY;
+		else if (moves[i].IsEnpassant()) orders[i].first += Move::ENPASSANT_PRIORITY;
 		else
 		{
-			if (killer_heuristic[depth][0] == move.GetMove()) move.SetPriority(Move::KILLER_MOVE);
-			else if (killer_heuristic[depth][1] == move.GetMove()) move.SetPriority(Move::KILLER_MOVE - 1);
+			if (killer_heuristic[depth][0] == moves[i]) orders[i].first += Move::KILLER_MOVE;
+			else if (killer_heuristic[depth][1] == moves[i]) orders[i].first += Move::KILLER_MOVE - 1;
 		}
+
+		orders[i].second = moves[i];
 	}
 
-	sort(moves.begin(), moves.end());
+	sort(orders.rbegin(), orders.rend());
+
+	for (int i = 0; i < orders.size(); ++i)
+	{
+		moves[i] = orders[i].second;
+	}
 }
 
 void Board::PerfTest(int depth, int& visited_nodes)
@@ -757,6 +794,8 @@ void Board::PerfTest(int depth, int& visited_nodes)
 
 int Board::Search(int max_depth, int depth, int alpha, int beta)
 {
+	this->pv_length[depth] = depth;
+
 	if (depth == max_depth)
 	{
 		++node;
@@ -780,10 +819,10 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 			if (score >= beta)
 			{
 				//record the quiet killer moves that causes fail high
-				if (!pseudo_move.IsCapture() && !pseudo_move.IsEnpassant())
+				if (pseudo_move.IsQuietMove())
 				{
 					killer_heuristic[depth][1] = killer_heuristic[depth][0];
-					killer_heuristic[depth][0] = pseudo_move.GetMove();
+					killer_heuristic[depth][0] = pseudo_move;
 				}
 
 				return beta;
@@ -792,7 +831,18 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 			if (score > alpha)
 			{
 				alpha = score;
-				if (depth == 0) this->best_move = pseudo_move;
+
+				//extract the pv moves
+				int next_depth = depth + 1;
+
+				//copy the child move length
+				this->pv_length[depth] = this->pv_length[next_depth];
+
+				//update the current move
+				this->pv_table[depth][depth] = pseudo_move;
+
+				//copy over from child's pv moves
+				copy(this->pv_table[next_depth] + next_depth, this->pv_table[next_depth] + this->pv_length[next_depth], this->pv_table[depth] + next_depth);
 			}
 		}
 	}
@@ -821,7 +871,7 @@ int Board::Quiescence(int alpha, int beta)
 
 	for (Move pseudo_move : pseudo_moves)
 	{
-		if (pseudo_move.IsCapture() || pseudo_move.IsEnpassant())
+		if (!pseudo_move.IsQuietMove())
 		{
 			if (MakePseudoMove(pseudo_move))
 			{
@@ -842,6 +892,18 @@ int Board::Quiescence(int alpha, int beta)
 
 void Board::PrintBoard()
 {
+	vector<int> board(64, -1);
+
+	for (int piece = WHITE_PAWN; piece <= BLACK_KING; ++piece)
+	{
+		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		{
+			int square = bitboard.GetLeastSigBit();
+			board[square] = piece;
+		}
+	}
+
+
 	for (int rank = 0; rank < 8; ++rank)
 	{
 		cout << "  -------------------------------\n ";
@@ -849,18 +911,7 @@ void Board::PrintBoard()
 		{
 			int square = rank * 8 + file;
 
-			bool found = false;
-			for (int piece = WHITE_PAWN; piece <= BLACK_KING; ++piece)
-			{
-				if (this->boardstate.bitboard[piece].GetBit(square))
-				{
-					cout << "| " << PieceToFen(piece) << ' ';
-					found = true;
-					break;
-				}
-			}
-
-			if (!found) cout << "|   ";
+			cout << "| " << PieceToAscii(board[square]) << ' ';
 		}
 		cout << "| " << 8 - rank << '\n';
 	}
