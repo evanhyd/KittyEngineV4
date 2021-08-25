@@ -1,5 +1,6 @@
 #include "bitboard.h"
 #include <iostream>
+#include <intrin.h>
 
 using std::cout;
 using std::cin;
@@ -32,21 +33,13 @@ void Bitboard::FlipBit(int square)
 
 int Bitboard::CountBit() const
 {
-	int set_bit = 0;
-	for (U64 bits = this->bitboard; bits != 0; ++set_bit)
-	{
-		bits &= (bits - 1);
-	};
-
-	return set_bit;
+	return static_cast<int>(__popcnt64(this->bitboard));
 }
 
 int Bitboard::GetLeastSigBit() const
 {
 	if (this->bitboard == 0) return -1;
-
-	//https://www.chessprogramming.org/BitScan#De_Bruijn_Multiplication a perfect minimal hashing algorithm with magic sequence
-	return LSB_HASH_TABLE[((this->bitboard ^ (this->bitboard - 1)) * DEBRUIJN64) >> 58];
+	return static_cast<int>(__popcnt64((this->bitboard ^ (this->bitboard-1))) - 1);
 }
 
 void Bitboard::PrintBitboard() const

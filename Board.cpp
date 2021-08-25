@@ -128,16 +128,16 @@ void Board::ParseFEN(const string& FEN)
 	{
 		char letter = *iter++;
 		if (isdigit(letter)) square += letter - '0';
-		else if (isalpha(letter)) this->boardstate.bitboard[FenToPiece(letter)].SetBit(square++);
+		else if (isalpha(letter)) this->boardstate.bitboards[FenToPiece(letter)].SetBit(square++);
 	}
 
 	for (int piece = WHITE_PAWN; piece <= WHITE_KING; ++piece)
 	{
-		this->boardstate.occupancies[WHITE] |= this->boardstate.bitboard[piece];
+		this->boardstate.occupancies[WHITE] |= this->boardstate.bitboards[piece];
 	}
 	for (int piece = BLACK_PAWN; piece <= BLACK_KING; ++piece)
 	{
-		this->boardstate.occupancies[BLACK] |= this->boardstate.bitboard[piece];
+		this->boardstate.occupancies[BLACK] |= this->boardstate.bitboards[piece];
 	}
 	this->boardstate.occupancies[BOTH] = this->boardstate.occupancies[WHITE] | this->boardstate.occupancies[BLACK];
 
@@ -243,8 +243,7 @@ void Board::ParsePosition(const string& position_str)
 
 void Board::ParsePerfTest(const string& perf_str)
 {
-	size_t index = 0;
-	index = perf_str.find("depth") + 6;
+	size_t index = perf_str.find("depth") + 6;
 	if (index < string::npos)
 	{
 		Board::visited_nodes = 0;
@@ -262,8 +261,7 @@ void Board::ParsePerfTest(const string& perf_str)
 
 void Board::ParseGo(const string& go_str)
 {
-	size_t index = 0;
-	index = go_str.find("depth") + 6;
+	size_t index = go_str.find("depth") + 6;
 	if (index < string::npos)
 	{
 		Board::visited_nodes = 0;
@@ -328,22 +326,22 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 {
 	//pawn
 	int pawn = PIECE_LIST_TABLE[attack_side][PAWN];
-	if (GetPawnAttackExact(!attack_side, square) & this->boardstate.bitboard[pawn]) return true;
+	if (GetPawnAttackExact(!attack_side, square) & this->boardstate.bitboards[pawn]) return true;
 
 	int knight = PIECE_LIST_TABLE[attack_side][KNIGHT];
-	if (GetKnightAttackExact(square) & this->boardstate.bitboard[knight]) return true;
+	if (GetKnightAttackExact(square) & this->boardstate.bitboards[knight]) return true;
 
 	int bishop = PIECE_LIST_TABLE[attack_side][BISHOP];
-	if (GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[bishop]) return true;
+	if (GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboards[bishop]) return true;
 
 	int rook = PIECE_LIST_TABLE[attack_side][ROOK];
-	if (GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[rook]) return true;
+	if (GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboards[rook]) return true;
 
 	int queen = PIECE_LIST_TABLE[attack_side][QUEEN];
-	if (GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboard[queen]) return true;
+	if (GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & this->boardstate.bitboards[queen]) return true;
 
 	int king = PIECE_LIST_TABLE[attack_side][KING];
-	if (GetKingAttackExact(square) & this->boardstate.bitboard[king]) return true;
+	if (GetKingAttackExact(square) & this->boardstate.bitboards[king]) return true;
 
 	return false;
 }
@@ -352,7 +350,7 @@ bool Board::IsKingAttacked()
 {
 	int king_side = this->boardstate.side_to_move;
 	int king = PIECE_LIST_TABLE[king_side][KING];
-	int kign_square = this->boardstate.bitboard[king].GetLeastSigBit();
+	int kign_square = this->boardstate.bitboards[king].GetLeastSigBit();
 	return IsSquareAttacked(kign_square, !king_side);
 }
 
@@ -364,7 +362,7 @@ int Board::GetCapturedPiece(Move move)
 
 	for (int captured_piece = PIECE_LIST_TABLE[!side][PAWN]; captured_piece <= PIECE_LIST_TABLE[!side][QUEEN]; ++captured_piece)
 	{
-		if (this->boardstate.bitboard[captured_piece].GetBit(dest_square)) return captured_piece;
+		if (this->boardstate.bitboards[captured_piece].GetBit(dest_square)) return captured_piece;
 	}
 
 	return -1;
@@ -386,7 +384,7 @@ vector<Move> Board::GetPseudoMoves()
 	//reverse the occupancy, where bit 1 represents an empty space
 	Bitboard not_occupancy = ~this->boardstate.occupancies[BOTH];
 
-	Bitboard pawn_push = (side == WHITE ? this->boardstate.bitboard[pawn] >> 8 : this->boardstate.bitboard[pawn] << 8) & not_occupancy;
+	Bitboard pawn_push = (side == WHITE ? this->boardstate.bitboards[pawn] >> 8 : this->boardstate.bitboards[pawn] << 8) & not_occupancy;
 	for (Bitboard cpy_pawn_push = pawn_push; cpy_pawn_push; cpy_pawn_push.PopBit())
 	{
 		int dest_square = cpy_pawn_push.GetLeastSigBit();
@@ -417,7 +415,7 @@ vector<Move> Board::GetPseudoMoves()
 	}
 
 
-	for (Bitboard pawn_bitboard = this->boardstate.bitboard[pawn]; pawn_bitboard; pawn_bitboard.PopBit())
+	for (Bitboard pawn_bitboard = this->boardstate.bitboards[pawn]; pawn_bitboard; pawn_bitboard.PopBit())
 	{
 		int source_square = pawn_bitboard.GetLeastSigBit();
 
@@ -445,7 +443,7 @@ vector<Move> Board::GetPseudoMoves()
 		int dest_square = this->boardstate.enpassant_square;
 
 		//simulate an attack from the being captured side, the source must be a pawn
-		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->boardstate.bitboard[pawn]; pawn_attack; pawn_attack.PopBit())
+		for (Bitboard pawn_attack = PAWN_ATTACK_TABLE[!side][dest_square] & this->boardstate.bitboards[pawn]; pawn_attack; pawn_attack.PopBit())
 		{
 			int source_square = pawn_attack.GetLeastSigBit();
 
@@ -460,7 +458,7 @@ vector<Move> Board::GetPseudoMoves()
 
 
 	int knight = PIECE_LIST_TABLE[side][KNIGHT];
-	for (Bitboard knight_bitboard = this->boardstate.bitboard[knight]; knight_bitboard; knight_bitboard.PopBit())
+	for (Bitboard knight_bitboard = this->boardstate.bitboards[knight]; knight_bitboard; knight_bitboard.PopBit())
 	{
 		int source_square = knight_bitboard.GetLeastSigBit();
 
@@ -477,7 +475,7 @@ vector<Move> Board::GetPseudoMoves()
 
 
 	int king = PIECE_LIST_TABLE[side][KING];
-	int king_square = this->boardstate.bitboard[king].GetLeastSigBit();
+	int king_square = this->boardstate.bitboards[king].GetLeastSigBit();
 
 	for (Bitboard king_attack = KING_ATTACK_TABLE[king_square] & ~this->boardstate.occupancies[side]; king_attack; king_attack.PopBit())
 	{
@@ -513,7 +511,7 @@ vector<Move> Board::GetPseudoMoves()
 
 
 	int bishop = PIECE_LIST_TABLE[side][BISHOP];
-	for (Bitboard bishop_bitboard = this->boardstate.bitboard[bishop]; bishop_bitboard; bishop_bitboard.PopBit())
+	for (Bitboard bishop_bitboard = this->boardstate.bitboards[bishop]; bishop_bitboard; bishop_bitboard.PopBit())
 	{
 		int source_square = bishop_bitboard.GetLeastSigBit();
 
@@ -531,7 +529,7 @@ vector<Move> Board::GetPseudoMoves()
 
 
 	int rook = PIECE_LIST_TABLE[side][ROOK];
-	for (Bitboard rook_bitboard = this->boardstate.bitboard[rook]; rook_bitboard; rook_bitboard.PopBit())
+	for (Bitboard rook_bitboard = this->boardstate.bitboards[rook]; rook_bitboard; rook_bitboard.PopBit())
 	{
 		int source_square = rook_bitboard.GetLeastSigBit();
 
@@ -550,7 +548,7 @@ vector<Move> Board::GetPseudoMoves()
 
 
 	int queen = PIECE_LIST_TABLE[side][QUEEN];
-	for (Bitboard queen_bitboard = this->boardstate.bitboard[queen]; queen_bitboard; queen_bitboard.PopBit())
+	for (Bitboard queen_bitboard = this->boardstate.bitboards[queen]; queen_bitboard; queen_bitboard.PopBit())
 	{
 		int source_square = queen_bitboard.GetLeastSigBit();
 
@@ -577,15 +575,15 @@ bool Board::MakePseudoMove(Move move)
 	int dest_square = move.GetDest();
 	int moving_piece = move.GetMovedPiece();
 
-	this->boardstate.bitboard[moving_piece].FlipBit(source_square);
-	this->boardstate.bitboard[moving_piece].FlipBit(dest_square);
+	this->boardstate.bitboards[moving_piece].FlipBit(source_square);
+	this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
 	this->boardstate.occupancies[side].FlipBit(source_square);
 	this->boardstate.occupancies[side].FlipBit(dest_square);
 
 	if (move.IsCapture())
 	{
 		int captured_piece = GetCapturedPiece(move);
-		this->boardstate.bitboard[captured_piece].FlipBit(dest_square);
+		this->boardstate.bitboards[captured_piece].FlipBit(dest_square);
 		this->boardstate.occupancies[!side].FlipBit(dest_square);
 	}
 
@@ -593,8 +591,8 @@ bool Board::MakePseudoMove(Move move)
 	if (promoted_piece_type)
 	{
 		int promoted_piece = PIECE_LIST_TABLE[side][promoted_piece_type];
-		this->boardstate.bitboard[moving_piece].FlipBit(dest_square);
-		this->boardstate.bitboard[promoted_piece].FlipBit(dest_square);
+		this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
+		this->boardstate.bitboards[promoted_piece].FlipBit(dest_square);
 	}
 	
 	if (move.IsEnpassant())
@@ -602,7 +600,7 @@ bool Board::MakePseudoMove(Move move)
 		int enpassanted_pawn = PIECE_LIST_TABLE[!side][PAWN];
 		int enpassanted_pawn_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
-		this->boardstate.bitboard[enpassanted_pawn].FlipBit(enpassanted_pawn_square);
+		this->boardstate.bitboards[enpassanted_pawn].FlipBit(enpassanted_pawn_square);
 		this->boardstate.occupancies[!side].FlipBit(enpassanted_pawn_square);
 	}
 
@@ -623,8 +621,8 @@ bool Board::MakePseudoMove(Move move)
 		}
 
 		//flip bit is cheaper
-		this->boardstate.bitboard[rook].FlipBit(rook_source);
-		this->boardstate.bitboard[rook].FlipBit(rook_dest);
+		this->boardstate.bitboards[rook].FlipBit(rook_source);
+		this->boardstate.bitboards[rook].FlipBit(rook_dest);
 		this->boardstate.occupancies[side].FlipBit(rook_source);
 		this->boardstate.occupancies[side].FlipBit(rook_dest);
 	}
@@ -650,6 +648,13 @@ bool Board::MakePseudoMove(Move move)
 		this->boardstate.side_to_move = !this->boardstate.side_to_move;
 		return true;
 	}
+}
+
+void Board::MakeNullMove()
+{
+	SaveState();
+	this->boardstate.enpassant_square = INVALID_SQUARE;
+	this->boardstate.side_to_move = !this->boardstate.side_to_move;
 }
 
 void Board::SaveState()
@@ -697,76 +702,68 @@ void Board::PerfTest(int depth)
 int Board::Evaluate()
 {
 	int score = 0;
-
-	int piece_num[12] = {};
 	int minor_piece_num[3] = {};
 	int major_piece_num[3] = {};
 
+	const Bitboard* this_bitboards = this->boardstate.bitboards;
+
 	for (int piece = WHITE_KNIGHT; piece <= WHITE_QUEEN; ++piece)
 	{
-		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		for (Bitboard bitboard = this_bitboards[piece]; bitboard; bitboard.PopBit())
 		{
 			int square = bitboard.GetLeastSigBit();
 			score += PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
-			++piece_num[piece];
 		}
 	}
 
 	for (int piece = BLACK_KNIGHT; piece <= BLACK_QUEEN; ++piece)
 	{
-		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		for (Bitboard bitboard = this_bitboards[piece]; bitboard; bitboard.PopBit())
 		{
 			int square = bitboard.GetLeastSigBit();
 			score -= PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
-			++piece_num[piece];
 		}
 	}
 
-	minor_piece_num[WHITE] = piece_num[WHITE_KNIGHT] + piece_num[WHITE_BISHOP];
-	minor_piece_num[BLACK] = piece_num[BLACK_KNIGHT] + piece_num[BLACK_BISHOP];
-	minor_piece_num[BOTH] = minor_piece_num[WHITE] + minor_piece_num[BLACK];
+	minor_piece_num[WHITE] = this_bitboards[WHITE_KNIGHT].CountBit() + this_bitboards[WHITE_BISHOP].CountBit();
+	major_piece_num[WHITE] = this_bitboards[WHITE_ROOK].CountBit() + this_bitboards[WHITE_QUEEN].CountBit();
 
-	major_piece_num[WHITE] = piece_num[WHITE_ROOK] + piece_num[WHITE_QUEEN];
-	major_piece_num[BLACK] = piece_num[BLACK_ROOK] + piece_num[BLACK_QUEEN];
+	minor_piece_num[BLACK] = this_bitboards[BLACK_KNIGHT].CountBit() + this_bitboards[BLACK_BISHOP].CountBit();
+	major_piece_num[BLACK] = this_bitboards[BLACK_ROOK].CountBit() + this_bitboards[BLACK_QUEEN].CountBit();
+
+	minor_piece_num[BOTH] = minor_piece_num[WHITE] + minor_piece_num[BLACK];
 	major_piece_num[BOTH] = major_piece_num[WHITE] + major_piece_num[BLACK];
 
 	
 	bool is_end_game = minor_piece_num[!this->boardstate.side_to_move] + major_piece_num[!this->boardstate.side_to_move] <= 3;
 
 
-	for (Bitboard bitboard = this->boardstate.bitboard[WHITE_PAWN]; bitboard; bitboard.PopBit())
+	for (Bitboard bitboard = this_bitboards[WHITE_PAWN]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
-		++piece_num[WHITE_PAWN];
 	}
 
-	for (Bitboard bitboard = this->boardstate.bitboard[BLACK_PAWN]; bitboard; bitboard.PopBit())
+	for (Bitboard bitboard = this_bitboards[BLACK_PAWN]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
-		++piece_num[BLACK_PAWN];
-	}
-	for (Bitboard bitboard = this->boardstate.bitboard[WHITE_KING]; bitboard; bitboard.PopBit())
-	{
-		int square = bitboard.GetLeastSigBit();
-		score += PIECE_KING_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
 	}
 
-	for (Bitboard bitboard = this->boardstate.bitboard[BLACK_KING]; bitboard; bitboard.PopBit())
-	{
-		int square = bitboard.GetLeastSigBit();
-		score -= PIECE_KING_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
-	}
+	int white_king_square = this_bitboards[WHITE_KING].GetLeastSigBit();
+	score += PIECE_KING_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][white_king_square];
+	int black_king_square = this_bitboards[BLACK_KING].GetLeastSigBit();
+	score -= PIECE_KING_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][black_king_square];
 
 
 	
-	if (piece_num[WHITE_PAWN] == 0 && piece_num[BLACK_PAWN] == 0 && major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
+	if (this_bitboards[WHITE_PAWN].CountBit() == 0 && this_bitboards[BLACK_PAWN].CountBit() == 0 && 
+		major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
 
 
 	//bishop pair compensation
-	if (piece_num[WHITE_BISHOP] >= 2) score += 50;
-	if (piece_num[BLACK_BISHOP] >= 2) score -= 50;
+	if (this_bitboards[WHITE_BISHOP].CountBit() >= 2) score += 50;
+	if (this_bitboards[BLACK_BISHOP].CountBit() >= 2) score -= 50;
 
 
 	return this->boardstate.side_to_move == WHITE ? score : -score;
@@ -826,7 +823,7 @@ void Board::SortNonQuietMoves(std::vector<Move>& moves)
 	}
 }
 
-int Board::Search(int max_depth, int depth, int alpha, int beta)
+int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_move)
 {
 	this->pv_length[depth] = depth;
 
@@ -841,9 +838,26 @@ int Board::Search(int max_depth, int depth, int alpha, int beta)
 	SortMoves(pseudo_moves, depth);
 
 	bool in_check = IsKingAttacked();
+	
+	if (!was_null_move && !in_check && depth > 0 && max_depth - depth > 3)
+	{
+		int big_piece_num = 0;
+		for (int piece = PIECE_LIST_TABLE[this->boardstate.side_to_move][KNIGHT]; piece <= PIECE_LIST_TABLE[this->boardstate.side_to_move][QUEEN]; ++piece)
+		{
+			big_piece_num += this->boardstate.bitboards[piece].CountBit();
+		}
+
+		if (big_piece_num >= 2)
+		{
+			MakeNullMove();
+			int score = -Search(max_depth, depth + 1 + 2, -beta, -beta + 1, true);
+			RestoreState();
+			if (score >= beta) return beta;
+		}
+	}
+
 	bool has_legal_move = false;
 	bool has_pv_candidate = false;
-
 	for (Move pseudo_move : pseudo_moves)
 	{
 		if (MakePseudoMove(pseudo_move))
@@ -942,7 +956,7 @@ void Board::PrintBoard()
 
 	for (int piece = WHITE_PAWN; piece <= BLACK_KING; ++piece)
 	{
-		for (Bitboard bitboard = this->boardstate.bitboard[piece]; bitboard; bitboard.PopBit())
+		for (Bitboard bitboard = this->boardstate.bitboards[piece]; bitboard; bitboard.PopBit())
 		{
 			int square = bitboard.GetLeastSigBit();
 			board[square] = piece;

@@ -5,7 +5,7 @@ class Boardstate
 {
 public:
 
-	Bitboard bitboard[12];
+	Bitboard bitboards[12];
 	Bitboard occupancies[3];
 	int side_to_move;
 	int castle;

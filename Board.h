@@ -72,6 +72,7 @@ public:
 
 	std::vector<Move> GetPseudoMoves();
 	bool MakePseudoMove(Move move);
+	void MakeNullMove();
 	void SaveState();
 	void RestoreState();
 
@@ -79,7 +80,7 @@ public:
 	int Evaluate();
 	void SortMoves(std::vector<Move>& moves, int depth);
 	void SortNonQuietMoves(std::vector<Move>& moves);
-	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX);
+	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX, bool was_null_move = false);
 	int Quiescence(int alpha, int beta);
 
 	void PrintBoard();
