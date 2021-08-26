@@ -273,8 +273,6 @@ void Board::ParseGo(const string& go_str)
 		{
 			int score = Search(depth);
 
-			if (this->boardstate.side_to_move == BLACK) score = -score;
-
 			cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
 			for (int i = 0; i < this->pv_length[0]; ++i)
 			{
@@ -286,14 +284,14 @@ void Board::ParseGo(const string& go_str)
 
 		cout << "bestmove ";
 		pv_table[0][0].PrintMove();
-		cout << '\n';
+		cout << endl;
 		if (pv_length[0]) MakePseudoMove(this->pv_table[0][0]);
 	}
 }
 
 void Board::UCI()
 {
-	cin.tie(nullptr)->sync_with_stdio(false);
+	ios_base::sync_with_stdio(false);
 	cout << "id name KittyEngine\n";
 	cout << "id author UnboxTheCat\n";
 	cout << "uciok\n";
@@ -812,6 +810,7 @@ void Board::SortNonQuietMoves(std::vector<Move>& moves)
 
 		if (moves[i].GetPromotedPieceType() != 0) orders[i].first += Move::PROMOTION_PRIORITY;
 		else if (moves[i].IsEnpassant()) orders[i].first += Move::ENPASSANT_PRIORITY;
+
 		orders[i].second = moves[i];
 	}
 
@@ -828,7 +827,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	this->pv_length[depth] = depth;
 
 	//should also check the max_seraching depth to avoid overflow
-	if (depth == max_depth)
+	if (depth >= max_depth)
 	{
 		++Board::visited_nodes;
 		return Quiescence(alpha, beta);
@@ -838,8 +837,9 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	SortMoves(pseudo_moves, depth);
 
 	bool in_check = IsKingAttacked();
-	
-	if (!was_null_move && !in_check && depth > 0 && max_depth - depth > 3)
+
+	//null move pruning
+	if (depth >= NULL_MOVE_DEPTH_REQUIRED && max_depth - depth >= 1 + REDUCTION_LIMIT && !in_check && !was_null_move)
 	{
 		int big_piece_num = 0;
 		for (int piece = PIECE_LIST_TABLE[this->boardstate.side_to_move][KNIGHT]; piece <= PIECE_LIST_TABLE[this->boardstate.side_to_move][QUEEN]; ++piece)
@@ -847,25 +847,44 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 			big_piece_num += this->boardstate.bitboards[piece].CountBit();
 		}
 
-		if (big_piece_num >= 2)
+		if (big_piece_num >= NULL_MOVE_PIECE_REQUIRED)
 		{
 			MakeNullMove();
-			int score = -Search(max_depth, depth + 1 + 2, -beta, -beta + 1, true);
+			int score = -Search(max_depth, depth + 1 + REDUCTION_LIMIT, -beta, -beta + 1, true);
 			RestoreState();
 			if (score >= beta) return beta;
 		}
 	}
 
-	bool has_legal_move = false;
-	bool has_pv_candidate = false;
+	int legal_moves_searched = 0;
 	for (Move pseudo_move : pseudo_moves)
 	{
-		if (MakePseudoMove(pseudo_move))
-		{
-			has_legal_move = true;
+		if (!MakePseudoMove(pseudo_move)) continue;
 
-			int score;
-			if (has_pv_candidate)
+		int score;
+
+		//first move full search, also skip pv node
+		if (legal_moves_searched == 0)
+		{
+			score = -Search(max_depth, depth + 1, -beta, -alpha);
+		}
+		else
+		{
+			bool enemy_in_check = IsKingAttacked();
+
+			//late move reduction
+			if (max_depth - depth >= REDUCTION_LIMIT && legal_moves_searched >= LATE_MOVE_SEARCHED_REQUIRED &&
+				!in_check && !enemy_in_check && pseudo_move.IsQuietMove() && pseudo_move != this->pv_table[depth][depth] &&
+				pseudo_move != this->killer_heuristic[depth][0] && pseudo_move != this->killer_heuristic[depth][1])
+			{
+				score = -Search(max_depth, depth + REDUCTION_LIMIT, -alpha - 1, -alpha);
+			}
+			//if can't use late move reduction, then use pv search
+			//if late move reduction raises alpha, then use pv search
+			else score = alpha + 1;
+
+			//principal variation search
+			if (score > alpha)
 			{
 				//test if the node can improve its alpha in the closed window
 				score = -Search(max_depth, depth + 1, -alpha - 1, -alpha);
@@ -874,42 +893,38 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 				//then research this node, because it may be a new best move
 				if (score > alpha && score < beta) score = -Search(max_depth, depth + 1, -beta, -alpha);
 			}
-			else
-			{
-				score = -Search(max_depth, depth + 1, -beta, -alpha);
-			}
-
-			RestoreState();
-
-			if (score >= beta)
-			{
-				//record the quiet killer moves that causes fail high
-				if (pseudo_move.IsQuietMove())
-				{
-					killer_heuristic[depth][1] = killer_heuristic[depth][0];
-					killer_heuristic[depth][0] = pseudo_move;
-				}
-
-				return beta;
-			}
-
-			if (score > alpha)
-			{
-				alpha = score;
-
-				//found another pv candidate
-				has_pv_candidate = true;
-
-				//update the current move and copy over from child's pv moves
-				int next_depth = depth + 1;
-				this->pv_length[depth] = this->pv_length[next_depth];
-				this->pv_table[depth][depth] = pseudo_move;
-				copy(this->pv_table[next_depth] + next_depth, this->pv_table[next_depth] + this->pv_length[next_depth], this->pv_table[depth] + next_depth);
-			}
 		}
+
+		RestoreState();
+
+		//fail high
+		if (score >= beta)
+		{
+			//record the quiet killer moves that causes fail high
+			if (pseudo_move.IsQuietMove())
+			{
+				killer_heuristic[depth][1] = killer_heuristic[depth][0];
+				killer_heuristic[depth][0] = pseudo_move;
+			}
+			return beta;
+		}
+
+		//fail low
+		if (score > alpha)
+		{
+			alpha = score;
+
+			//update the current pv move and copy over from child's pv moves
+			int next_depth = depth + 1;
+			this->pv_length[depth] = this->pv_length[next_depth];
+			this->pv_table[depth][depth] = pseudo_move;
+			copy(this->pv_table[next_depth] + next_depth, this->pv_table[next_depth] + this->pv_length[next_depth], this->pv_table[depth] + next_depth);
+		}
+
+		++legal_moves_searched;
 	}
 
-	if (!has_legal_move)
+	if (legal_moves_searched == 0)
 	{
 		//include the depth to force the shorter checkmate
 		if (in_check) return -1000000 + depth;
@@ -918,6 +933,8 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 
 	return alpha;
 }
+
+
 
 int Board::Quiescence(int alpha, int beta)
 {

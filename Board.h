@@ -46,6 +46,11 @@ class Board
 {
 	static constexpr int MAX_SEARCHING_DEPTH = 30;
 	static constexpr int MAX_MOVE_PER_ROUND = 256;
+	static constexpr int NULL_MOVE_DEPTH_REQUIRED = 1;
+	static constexpr int NULL_MOVE_PIECE_REQUIRED = 2;
+	static constexpr int LATE_MOVE_DEPTH_REQUIRED = 0;
+	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4;
+	static constexpr int REDUCTION_LIMIT = 2;
 	static int visited_nodes;
 
 public:
