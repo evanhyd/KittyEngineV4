@@ -1,6 +1,7 @@
 #include "board.h"
 #include "piece_attack_table.h"
 #include <iostream>
+#include <iomanip>
 #include <algorithm>
 #include <chrono>
 #include <cctype>
@@ -114,14 +115,17 @@ int ToFile(char c)
 	return tolower(c) - 'a';
 }
 
-int Board::visited_nodes = 0;
-
 
 void Board::ParseFEN(const string& FEN)
 {
 	this->boardstate.Clear();
 	this->boardstate_history.Clear();
-
+	this->visited_nodes = 0;
+	fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
+	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
+	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
+	this->repeated_position.clear();
+	
 
 	auto iter = FEN.begin();
 	for (int square = 0; square < 64;)
@@ -169,7 +173,11 @@ void Board::ParseFEN(const string& FEN)
 		this->boardstate.enpassant_square = rank * 8 + file;
 	}
 
+
 	iter += 2;
+
+	//generate new position key
+	this->boardstate.zobrist.GenerateNewKey(this->boardstate.bitboards, this->boardstate.enpassant_square, this->boardstate.castle, this->boardstate.side_to_move);
 }
 
 bool Board::ParseMove(const string& move_str)
@@ -191,7 +199,11 @@ bool Board::ParseMove(const string& move_str)
 	{
 		if (pseudo_move.GetSource() == source_square && pseudo_move.GetDest() == dest_square && pseudo_move.GetPromotedPieceType() == promoted_piece_type)
 		{
-			if (MakePseudoMove(pseudo_move)) return true;
+			if (MakePseudoMove(pseudo_move))
+			{
+				this->repeated_position.insert(this->boardstate.zobrist.GetPositionKey());
+				return true;
+			}
 			else return false;
 		}
 	}
@@ -246,55 +258,100 @@ void Board::ParsePerfTest(const string& perf_str)
 	size_t index = perf_str.find("depth") + 6;
 	if (index < string::npos)
 	{
-		Board::visited_nodes = 0;
+		this->visited_nodes = 0;
 		int max_depth = stoi(perf_str.substr(index));
 
 		high_resolution_clock::time_point timer = high_resolution_clock::now();
 		PerfTest(max_depth);
 		auto duration = duration_cast<milliseconds>(high_resolution_clock::now() - timer);
 
-		cout << "Node: " << Board::visited_nodes << '\n';
+		cout << "Node: " << this->visited_nodes << '\n';
 		cout << "Time: " << duration.count() << " ms\n";
-		cout << "Speed: " << Board::visited_nodes / duration.count() << " knode/s\n";
+		cout << "Speed: " << this->visited_nodes / duration.count() << " knode/s"<<endl;
 	}
 }
 
 void Board::ParseGo(const string& go_str)
 {
-	size_t index = go_str.find("depth") + 6;
-	if (index < string::npos)
+	int max_depth = MAX_SEARCHING_DEPTH;
+	long long remaining_time_ms = Timer::DEFAULT_THINKING_TIME_MS;
+	long long increment_time_ms = Timer::DEFAULT_INCREMENT_TIME_MS;
+
+	size_t index = go_str.find("depth");
+	if (index != string::npos) max_depth = stoi(go_str.substr(index + 6));
+	else
 	{
-		Board::visited_nodes = 0;
-		fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
-		fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
-		fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
-
-		for (int depth = 1, max_depth = stoi(go_str.substr(index)); depth <=  max_depth; ++depth)
+		if (this->boardstate.side_to_move == WHITE)
 		{
-			int score = Search(depth);
+			index = go_str.find("wtime");
+			if (index != string::npos) remaining_time_ms = stoi(go_str.substr(index + 6));
 
-			cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
-			for (int i = 0; i < this->pv_length[0]; ++i)
-			{
-				pv_table[0][i].PrintMove();
-				cout << ' ';
-			}
-			cout << '\n';
+			index = go_str.find("winc");
+			if (index != string::npos) increment_time_ms = stoi(go_str.substr(index + 5));
 		}
+		else
+		{
+			index = go_str.find("btime");
+			if (index != string::npos) remaining_time_ms = stoi(go_str.substr(index + 6));
 
-		cout << "bestmove ";
-		pv_table[0][0].PrintMove();
-		cout << endl;
-		if (pv_length[0]) MakePseudoMove(this->pv_table[0][0]);
+			index = go_str.find("binc");
+			if (index != string::npos) increment_time_ms = stoi(go_str.substr(index + 5));
+		}
+	}
+
+	this->timer.StartTimer(remaining_time_ms, increment_time_ms);
+
+	this->visited_nodes = 0;
+	fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
+	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
+	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
+	Move best_move = 0;
+
+	for (int depth = 1, alpha = -INT_MAX, beta = INT_MAX; depth <= max_depth;)
+	{
+		int score = Search(depth, 0, alpha, beta);
+
+		if (timer.IsTimeOut()) break;
+		else
+		{
+			//fell out of the window, re-search
+			if (score <= alpha || score >= beta)
+			{
+				alpha = -INT_MAX;
+				beta = INT_MAX;
+			}
+			else
+			{
+				//otherwise adjust the aspiration window
+				alpha = score - ASPIRATION_WINDOW;
+				beta = score + ASPIRATION_WINDOW;
+
+				cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
+				for (int i = 0; i < this->pv_length[0]; ++i)
+				{
+					pv_table[0][i].PrintMove();
+					cout << ' ';
+				}
+				cout << endl;
+				best_move = pv_table[0][0];
+				++depth;
+			}
+		}
+	}
+
+	cout << "bestmove ";
+	best_move.PrintMove();
+	cout << endl;
+	if (best_move)
+	{
+		MakePseudoMove(best_move);
+		this->repeated_position.insert(this->boardstate.zobrist.GetPositionKey());
 	}
 }
 
 void Board::UCI()
 {
 	ios_base::sync_with_stdio(false);
-	cout << "id name KittyEngine\n";
-	cout << "id author UnboxTheCat\n";
-	cout << "uciok\n";
 
 	string command;
 	while (true)
@@ -304,15 +361,15 @@ void Board::UCI()
 		{
 			cout << "id name KittyEngine\n";
 			cout << "id author UnboxTheCat\n";
-			cout << "uciok\n";
+			cout << "uciok" << endl;
 		}
-		else if (command == "isready") cout << "readyok\n";
-		else if (command.substr(0, 8) == "position") ParsePosition(command);
-		else if (command.substr(0, 10) == "ucinewgame") ParsePosition("position startpos");
-		else if (command.substr(0, 5) == "perft") ParsePerfTest(command);
-		else if (command.substr(0, 2) == "go") ParseGo(command);
-		else if (command.substr(0, 8) == "takeback") RestoreState();
-		else if (command == "quit") break;
+		else if (command.find("isready") != string::npos) cout << "readyok" << endl;
+		else if (command.find("position") != string::npos) ParsePosition(command);
+		else if (command.find("ucinewgame") != string::npos) ParsePosition("position startpos");
+		else if (command.find("perft") != string::npos) ParsePerfTest(command);
+		else if (command.find("go") != string::npos) ParseGo(command);
+		else if (command.find("takeback") != string::npos) RestoreState();//remove the map entry
+		else if (command.find("quit") != string::npos) break;
 		else cout << "Invaild command\a\n";
 
 		PrintBoard();
@@ -577,12 +634,15 @@ bool Board::MakePseudoMove(Move move)
 	this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
 	this->boardstate.occupancies[side].FlipBit(source_square);
 	this->boardstate.occupancies[side].FlipBit(dest_square);
+	this->boardstate.zobrist.HashPiece(moving_piece, source_square);
+	this->boardstate.zobrist.HashPiece(moving_piece, dest_square);
 
 	if (move.IsCapture())
 	{
 		int captured_piece = GetCapturedPiece(move);
 		this->boardstate.bitboards[captured_piece].FlipBit(dest_square);
 		this->boardstate.occupancies[!side].FlipBit(dest_square);
+		this->boardstate.zobrist.HashPiece(captured_piece, dest_square);
 	}
 
 	int promoted_piece_type = move.GetPromotedPieceType();
@@ -591,18 +651,28 @@ bool Board::MakePseudoMove(Move move)
 		int promoted_piece = PIECE_LIST_TABLE[side][promoted_piece_type];
 		this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
 		this->boardstate.bitboards[promoted_piece].FlipBit(dest_square);
+		this->boardstate.zobrist.HashPiece(moving_piece, dest_square);
+		this->boardstate.zobrist.HashPiece(promoted_piece, dest_square);
 	}
 	
 	if (move.IsEnpassant())
 	{
-		int enpassanted_pawn = PIECE_LIST_TABLE[!side][PAWN];
-		int enpassanted_pawn_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
+		int captured_pawn = PIECE_LIST_TABLE[!side][PAWN];
+		int captured_pawn_square = (side == WHITE ? dest_square + 8 : dest_square - 8);
 
-		this->boardstate.bitboards[enpassanted_pawn].FlipBit(enpassanted_pawn_square);
-		this->boardstate.occupancies[!side].FlipBit(enpassanted_pawn_square);
+		this->boardstate.bitboards[captured_pawn].FlipBit(captured_pawn_square);
+		this->boardstate.occupancies[!side].FlipBit(captured_pawn_square);
+		this->boardstate.zobrist.HashPiece(captured_pawn, captured_pawn_square);
 	}
 
-	if (move.IsDoublePush()) this->boardstate.enpassant_square = (side == WHITE ? source_square - 8 : source_square + 8);
+	//unhash the old enpassant square
+	if(this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
+	
+	if (move.IsDoublePush())
+	{
+		this->boardstate.enpassant_square = (side == WHITE ? source_square - 8 : source_square + 8);
+		this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
+	}
 	else this->boardstate.enpassant_square = INVALID_SQUARE;
 
 	if (move.IsCastling())
@@ -623,15 +693,22 @@ bool Board::MakePseudoMove(Move move)
 		this->boardstate.bitboards[rook].FlipBit(rook_dest);
 		this->boardstate.occupancies[side].FlipBit(rook_source);
 		this->boardstate.occupancies[side].FlipBit(rook_dest);
+		this->boardstate.zobrist.HashPiece(rook, rook_source);
+		this->boardstate.zobrist.HashPiece(rook, rook_dest);
 	}
 
+	this->boardstate.zobrist.HashCastle(this->boardstate.castle);
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[source_square];
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[dest_square];
+	this->boardstate.zobrist.HashCastle(this->boardstate.castle);
 
 
 	//update the occupancies
 	this->boardstate.occupancies[BOTH] = this->boardstate.occupancies[WHITE] | this->boardstate.occupancies[BLACK];
 
+	//update fifty moves rule
+	if (moving_piece == WHITE_PAWN || moving_piece == BLACK_PAWN || move.IsCapture() || move.IsEnpassant()) this->boardstate.fifty_moves = 0;
+	else ++this->boardstate.fifty_moves;
 
 	//check for check
 	bool in_check = IsKingAttacked();
@@ -644,6 +721,7 @@ bool Board::MakePseudoMove(Move move)
 	else
 	{
 		this->boardstate.side_to_move = !this->boardstate.side_to_move;
+		this->boardstate.zobrist.HashSideToMove();
 		return true;
 	}
 }
@@ -651,7 +729,13 @@ bool Board::MakePseudoMove(Move move)
 void Board::MakeNullMove()
 {
 	SaveState();
+
+	//unhash the old enpassant square
+	if (this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
 	this->boardstate.enpassant_square = INVALID_SQUARE;
+
+	//update the side to move hash
+	this->boardstate.zobrist.HashSideToMove();
 	this->boardstate.side_to_move = !this->boardstate.side_to_move;
 }
 
@@ -679,7 +763,7 @@ void Board::PerfTest(int depth)
 {
 	if (depth == 0)
 	{
-		++Board::visited_nodes;
+		++this->visited_nodes;
 		return;
 	}
 
@@ -822,16 +906,30 @@ void Board::SortNonQuietMoves(std::vector<Move>& moves)
 	}
 }
 
+
+
 int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_move)
 {
+	//must before returning
 	this->pv_length[depth] = depth;
+
+
+	//threefold repetition
+	if (depth > 0 && this->repeated_position.find(this->boardstate.zobrist.GetPositionKey()) != this->repeated_position.end()) return 0;
+
+
+	//fifty move rules
+	if (this->boardstate.fifty_moves == 50) return 0;
+	
 
 	//should also check the max_seraching depth to avoid overflow
 	if (depth >= max_depth)
 	{
-		++Board::visited_nodes;
-		return Quiescence(alpha, beta);
+		++this->visited_nodes;
+		int score = Quiescence(alpha, beta);
+		return score;
 	}
+
 
 	vector<Move> pseudo_moves = GetPseudoMoves();
 	SortMoves(pseudo_moves, depth);
@@ -859,6 +957,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	int legal_moves_searched = 0;
 	for (Move pseudo_move : pseudo_moves)
 	{
+		if (this->timer.IsTimeOut()) break;
 		if (!MakePseudoMove(pseudo_move)) continue;
 
 		int score;
@@ -883,6 +982,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 			//if late move reduction raises alpha, then use pv search
 			else score = alpha + 1;
 
+
 			//principal variation search
 			if (score > alpha)
 			{
@@ -897,7 +997,6 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 
 		RestoreState();
 
-		//fail high
 		if (score >= beta)
 		{
 			//record the quiet killer moves that causes fail high
@@ -906,10 +1005,10 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 				killer_heuristic[depth][1] = killer_heuristic[depth][0];
 				killer_heuristic[depth][0] = pseudo_move;
 			}
+
 			return beta;
 		}
 
-		//fail low
 		if (score > alpha)
 		{
 			alpha = score;
@@ -920,15 +1019,14 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 			this->pv_table[depth][depth] = pseudo_move;
 			copy(this->pv_table[next_depth] + next_depth, this->pv_table[next_depth] + this->pv_length[next_depth], this->pv_table[depth] + next_depth);
 		}
-
 		++legal_moves_searched;
 	}
 
 	if (legal_moves_searched == 0)
 	{
 		//include the depth to force the shorter checkmate
-		if (in_check) return -1000000 + depth;
-		else return 0;
+		if (in_check) alpha = MATE_SCORE + depth;
+		else alpha = 0;
 	}
 
 	return alpha;
@@ -938,6 +1036,9 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 
 int Board::Quiescence(int alpha, int beta)
 {
+	//threefold repetition
+	if (this->repeated_position.find(this->boardstate.zobrist.GetPositionKey()) != this->repeated_position.end()) return 0;
+
 	int score = Evaluate();
 
 	if (score >= beta) return beta;
@@ -948,6 +1049,8 @@ int Board::Quiescence(int alpha, int beta)
 
 	for (Move pseudo_move : pseudo_moves)
 	{
+		if (this->timer.IsTimeOut()) break;
+
 		if (!pseudo_move.IsQuietMove())
 		{
 			if (MakePseudoMove(pseudo_move))
@@ -995,9 +1098,9 @@ void Board::PrintBoard()
 
 	cout << "  -------------------------------\n   a   b   c   d   e   f   g   h\n";
 
-	cout << "Castle: " << this->boardstate.castle << '\n';
 	cout << "Enpassant: " << (this->boardstate.enpassant_square != INVALID_SQUARE ? SQUARE_STR_TABLE[this->boardstate.enpassant_square] : "empty") << '\n';
-
+	cout << "Castle: " << this->boardstate.castle << '\n';
+	cout << "Position Key: " << this->boardstate.zobrist.GetPositionKey() << '\n';
 	if (this->boardstate.side_to_move == WHITE) cout << "White to move:\n";
 	else cout << "Black to move:\n";
 }

@@ -24,9 +24,6 @@
     <ClCompile Include="piece_attack_table.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="random.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="magic.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -36,10 +33,19 @@
     <ClCompile Include="move.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="fast_stack.cpp">
+    <ClCompile Include="boardstate_stack.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="boardstate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="timer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="zobrist.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="transposition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -48,9 +54,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="piece_attack_table.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="random.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="magic.h">
@@ -62,10 +65,19 @@
     <ClInclude Include="move.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="fast_stack.h">
+    <ClInclude Include="boardstate_stack.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="boardstate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="timer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="zobrist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="transposition.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

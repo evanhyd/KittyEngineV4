@@ -1,5 +1,4 @@
 #pragma once
-#include "random.h"
 #include "bitboard.h"
 
 const Bitboard BISHOP_MAGIC_NUM_TABLE[64] =

@@ -1,10 +1,13 @@
 #pragma once
 #include "bitboard.h"
-#include "fast_stack.h"
+#include "boardstate_stack.h"
 #include "move.h"
+#include "timer.h"
+#include "zobrist.h"
+#include "transposition.h"
 #include <string>
 #include <vector>
-#include <deque>
+#include <unordered_set>
 
 enum : int
 {
@@ -44,24 +47,28 @@ int ToFile(char c);
 
 class Board
 {
-	static constexpr int MAX_SEARCHING_DEPTH = 30;
+	static constexpr int MAX_SEARCHING_DEPTH = 20;
 	static constexpr int MAX_MOVE_PER_ROUND = 256;
 	static constexpr int NULL_MOVE_DEPTH_REQUIRED = 1;
 	static constexpr int NULL_MOVE_PIECE_REQUIRED = 2;
 	static constexpr int LATE_MOVE_DEPTH_REQUIRED = 0;
 	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4;
 	static constexpr int REDUCTION_LIMIT = 2;
-	static int visited_nodes;
+	static constexpr int ASPIRATION_WINDOW = 50;
 
 public:
 
 	Boardstate boardstate;
-	FastStack boardstate_history;
+	BoardstateStack boardstate_history;
 
-
+	int visited_nodes;
 	Move killer_heuristic[MAX_SEARCHING_DEPTH][2];
 	int pv_length[MAX_SEARCHING_DEPTH];
 	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
+
+	std::unordered_set<U64> repeated_position;
+
+	Timer timer;
 
 
 	void ParseFEN(const std::string& FEN);
@@ -85,7 +92,7 @@ public:
 	int Evaluate();
 	void SortMoves(std::vector<Move>& moves, int depth);
 	void SortNonQuietMoves(std::vector<Move>& moves);
-	int Search(int max_depth, int depth = 0, int alpha = -INT_MAX, int beta = INT_MAX, bool was_null_move = false);
+	int Search(int max_depth, int depth, int alpha, int beta, bool was_null_move = false);
 	int Quiescence(int alpha, int beta);
 
 	void PrintBoard();
@@ -117,8 +124,8 @@ constexpr int PIECE_SIDE_TABLE[12] = { WHITE, WHITE, WHITE, WHITE, WHITE, WHITE,
 constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
 constexpr U64 CASTLE_GET_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]
 
-
-constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 100000, 100, 330, 345, 500, 975, 100000 };
+constexpr int MATE_SCORE = -30000;
+constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 0, 100, 330, 345, 500, 975, 0 };
 constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
 {
 	{//white pawn

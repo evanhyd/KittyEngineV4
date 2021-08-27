@@ -49,7 +49,7 @@ public:
 
 
     //move ordering
-    static constexpr int QUIET_MOVE_PRIORITY = 0;
+    static constexpr int FUTILITY_MOVE_PRIORITY = 0;
     static constexpr int KILLER_MOVE = 99;
     static constexpr int ENPASSANT_PRIORITY = 105;
     static constexpr int PROMOTION_PRIORITY = 500;

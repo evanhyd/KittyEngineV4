@@ -147,22 +147,26 @@
     <ClCompile Include="bitboard.cpp" />
     <ClCompile Include="board.cpp" />
     <ClCompile Include="boardstate.cpp" />
-    <ClCompile Include="fast_stack.cpp" />
+    <ClCompile Include="boardstate_stack.cpp" />
     <ClCompile Include="magic.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="move.cpp" />
     <ClCompile Include="piece_attack_table.cpp" />
-    <ClCompile Include="random.cpp" />
+    <ClCompile Include="timer.cpp" />
+    <ClCompile Include="transposition.cpp" />
+    <ClCompile Include="zobrist.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="bitboard.h" />
     <ClInclude Include="board.h" />
     <ClInclude Include="boardstate.h" />
-    <ClInclude Include="fast_stack.h" />
+    <ClInclude Include="boardstate_stack.h" />
     <ClInclude Include="magic.h" />
     <ClInclude Include="move.h" />
     <ClInclude Include="piece_attack_table.h" />
-    <ClInclude Include="random.h" />
+    <ClInclude Include="timer.h" />
+    <ClInclude Include="transposition.h" />
+    <ClInclude Include="zobrist.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

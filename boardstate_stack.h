@@ -3,18 +3,18 @@
 
 using namespace std;
 
-class FastStack
+class BoardstateStack
 {
 	Boardstate* stack;
 	int size;
 
 public:
 	bool Empty();
-	void PushBack(const Boardstate& new_move);
+	void PushBack(const Boardstate& new_boardstate);
 	void PopBack();
 	void Clear();
 	Boardstate& Back();
 
-	FastStack(int size);
+	BoardstateStack(int size);
 };
 

@@ -12,11 +12,14 @@ void Boardstate::Clear()
 	this->side_to_move = WHITE;
 	this->castle = 0;
 	this->enpassant_square = INVALID_SQUARE;
+	this->fifty_moves = 0;
+	this->zobrist.Clear();
 }
 
 
-Boardstate::Boardstate() : side_to_move(WHITE), castle(0), enpassant_square(INVALID_SQUARE)
+Boardstate::Boardstate() : side_to_move(WHITE), castle(0), enpassant_square(INVALID_SQUARE), fifty_moves(0)
 {
 	fill(begin(this->bitboards), end(this->bitboards), 0);
 	fill(begin(this->occupancies), end(this->occupancies), 0);
+	this->zobrist.Clear();
 }

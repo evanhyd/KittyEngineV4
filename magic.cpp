@@ -5,11 +5,11 @@
 #include <iostream>
 #include <iomanip>
 
+/*
 using std::cin;
 using std::cout;
 using std::cerr;
 
-/*
 Bitboard BISHOP_MAGIC_NUM_TABLE[64] = {};
 Bitboard ROOK_MAGIC_NUM_TABLE[64] = {};
 
