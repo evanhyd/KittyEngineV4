@@ -231,6 +231,11 @@ void Board::ParsePosition(const string& position_str)
 		index += 8;
 		ParseFEN("8/r6n/8/8/5k2/3K4/7N/3b3Q b - - 0 0");
 	}
+	else if (position_str.substr(index, 7) == "endgame")
+	{
+		index += 8;
+		ParseFEN("8/8/8/8/8/8/PK5k/8 w - - 0 1");
+	}
 	else if (position_str.substr(index, 3) == "fen")
 	{
 		index += 4;
@@ -315,12 +320,12 @@ void Board::ParseGo(const string& go_str)
 	fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
 	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
 	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
-	Move best_move = 0;
-
 	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
 	{
 		this->transposition_table[i].Clear();
 	}
+
+	Move best_move = 0;
 
 	for (int depth = 1, alpha = -INT_MAX, beta = INT_MAX; depth <= max_depth && depth < MAX_SEARCHING_DEPTH;)
 	{
@@ -338,12 +343,6 @@ void Board::ParseGo(const string& go_str)
 			}
 			else
 			{
-				/*
-				for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
-				{
-					this->transposition_table[i].Clear();
-				}*/
-
 				//otherwise adjust the aspiration window
 				alpha = score - ITERATIVE_DEEPENING_ASPIRATION_WINDOW;
 				beta = score + ITERATIVE_DEEPENING_ASPIRATION_WINDOW;
@@ -930,8 +929,10 @@ void Board::SortNonQuietMoves(std::vector<Move>& moves)
 
 
 
-int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_move)
+int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_reduced)
 {
+	//must before returning
+	this->pv_length[depth] = depth;
 
 	//threefold repetition
 	if (depth > 0 && this->repeated_position.find(this->boardstate.zobrist.GetPositionKey()) != this->repeated_position.end()) return 0;
@@ -944,20 +945,17 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	//look up the tt
 	if (depth > 0)
 	{
-		int score = Transposition::ProbeHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.zobrist.GetPositionKey(), depth, alpha, beta);
+		int score = Transposition::ProbeHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.zobrist.GetPositionKey(), max_depth - depth, alpha, beta, this->boardstate.side_to_move);
 		if (score != Transposition::SCORE_EMPTY) return score;
 	}
 	
-
-	//must before returning
-	this->pv_length[depth] = depth;
 
 	//should also check the max_seraching depth to avoid overflow
 	if (depth >= max_depth)
 	{
 		++this->visited_nodes;
 		int score = Quiescence(alpha, beta);
-		Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, {this->boardstate.zobrist.GetPositionKey(), depth, score, Transposition::HASH_FLAG_EXACT});
+		Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, {this->boardstate.zobrist.GetPositionKey(), max_depth - depth, score, Transposition::HASH_FLAG_EXACT}, this->boardstate.side_to_move);
 		return score;
 	}
 
@@ -968,7 +966,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	bool in_check = IsKingAttacked();
 
 	//null move pruning
-	if (depth >= NULL_MOVE_DEPTH_REQUIRED && max_depth - depth >= 1 + REDUCTION_LIMIT && !in_check && !was_null_move)
+	if (!null_move_reduced && depth >= NULL_MOVE_DEPTH_REQUIRED && max_depth - depth >= 1 + REDUCTION_LIMIT && !in_check)
 	{
 		int big_piece_num = 0;
 		for (int piece = PIECE_LIST_TABLE[this->boardstate.side_to_move][KNIGHT]; piece <= PIECE_LIST_TABLE[this->boardstate.side_to_move][QUEEN]; ++piece)
@@ -981,7 +979,11 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 			MakeNullMove();
 			int score = -Search(max_depth, depth + 1 + REDUCTION_LIMIT, -beta, -beta + 1, true);
 			RestoreState();
-			if (score >= beta) return beta;
+			if (score >= beta)
+			{
+				Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), max_depth - depth, beta, Transposition::HASH_FLAG_BETA }, this->boardstate.side_to_move);
+				return beta;
+			}
 		}
 	}
 
@@ -1026,7 +1028,6 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 
 		RestoreState();
 
-		
 
 		if (score > alpha)
 		{
@@ -1050,7 +1051,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 					killer_heuristic[depth][0] = pseudo_move;
 				}
 
-				Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), depth, beta, Transposition::HASH_FLAG_BETA });
+				Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), max_depth - depth, beta, Transposition::HASH_FLAG_BETA }, this->boardstate.side_to_move);
 				return beta;
 			}
 		}
@@ -1063,11 +1064,13 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool was_null_m
 	if (legal_moves_searched == 0)
 	{
 		//include the depth to force the shorter checkmate
-		if (in_check) return MATE_SCORE + depth;
-		else return 0;
+		if (in_check) alpha = MATE_SCORE + depth;
+		else alpha = 0;
+
+		hash_flag = Transposition::HASH_FLAG_EXACT;
 	}
 
-	Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), depth, alpha, hash_flag });
+	Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), max_depth - depth, alpha, hash_flag }, this->boardstate.side_to_move);
 
 	return alpha;
 }
