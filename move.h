@@ -71,6 +71,7 @@ public:
     };
 
     static constexpr int PRINCIPAL_VARIATION_PRIORITY = 10000;
+    static constexpr int TRANSPOSITION_PRIORITY = 20000;
 
 };
 
