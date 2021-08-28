@@ -1,10 +1,4 @@
-﻿  board.cpp
-  boardstate.cpp
-  main.cpp
-  move.cpp
-  piece_attack_table.cpp
-  transposition.cpp
-  zobrist.cpp
+﻿  transposition.cpp
   Generating code
   Finished generating code
   KittyEngine.vcxproj -> C:\Users\evanh\Desktop\KittyEngine\x64\Release\KittyEngine.exe

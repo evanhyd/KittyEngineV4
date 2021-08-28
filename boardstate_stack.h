@@ -13,8 +13,9 @@ public:
 	void PushBack(const Boardstate& new_boardstate);
 	void PopBack();
 	void Clear();
+	int Size();
 	Boardstate& Back();
 
-	BoardstateStack(int size);
+	BoardstateStack(size_t size);
 };
 

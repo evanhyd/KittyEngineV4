@@ -44,7 +44,7 @@ bool Move::IsMoveEmpty() const
 {
 	return this->move == 0;
 }
-void Move::ClearMove()
+void Move::Clear()
 {
 	this->move = 0;
 }
@@ -64,6 +64,9 @@ Move::operator int&()
 	return this->move;
 }
 
+Move::Move() : move(0)
+{
+}
 Move::Move(int new_move) : move(new_move)
 {
 }

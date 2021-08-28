@@ -29,13 +29,13 @@ public:
     bool IsCastling() const;
     bool IsQuietMove() const;
     bool IsMoveEmpty() const;
-    void ClearMove();
+    void Clear();
     void PrintMove() const;
 
     operator int() const;
     operator int&();
 
-    Move() = default;
+    Move();
     Move(int new_move);
     Move(int source_square, int dest_square, int piece, int promoted_piece_type = 0, int flag = 0);
 

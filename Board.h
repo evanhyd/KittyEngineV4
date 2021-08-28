@@ -47,14 +47,15 @@ int ToFile(char c);
 
 class Board
 {
-	static constexpr int MAX_SEARCHING_DEPTH = 20;
-	static constexpr int MAX_MOVE_PER_ROUND = 256;
+	static constexpr int MAX_SEARCHING_DEPTH = 30;
+	static constexpr size_t BOARDSTATE_STACK_SIZE = 256;
 	static constexpr int NULL_MOVE_DEPTH_REQUIRED = 1;
 	static constexpr int NULL_MOVE_PIECE_REQUIRED = 2;
-	static constexpr int LATE_MOVE_DEPTH_REQUIRED = 0;
-	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4;
+	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4; //change this value if the engine failed to find good moves
 	static constexpr int REDUCTION_LIMIT = 2;
-	static constexpr int ASPIRATION_WINDOW = 50;
+	static constexpr int ITERATIVE_DEEPENING_ASPIRATION_WINDOW = 50;//change this value if the branching factor is abnormal
+	static constexpr size_t REPEATED_POSITION_SIZE = 256;
+	static constexpr size_t TRANSPOSITION_TABLE_SIZE = 16777216; //power of 2, can use & to save time
 
 public:
 
@@ -67,8 +68,10 @@ public:
 	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
 
 	std::unordered_set<U64> repeated_position;
+	Transposition* transposition_table;
 
 	Timer timer;
+
 
 
 	void ParseFEN(const std::string& FEN);
@@ -97,7 +100,7 @@ public:
 
 	void PrintBoard();
 
-	Board(const string& FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+	Board();
 
 };
 

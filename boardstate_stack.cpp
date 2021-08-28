@@ -17,14 +17,17 @@ void BoardstateStack::Clear()
 {
 	this->size = 0;
 }
-
+int BoardstateStack::Size()
+{
+	return this->size;
+}
 Boardstate& BoardstateStack::Back()
 {
 	return this->stack[size - 1];
 }
 
 
-BoardstateStack::BoardstateStack(int size)
+BoardstateStack::BoardstateStack(size_t size)
 {
 	this->stack = new Boardstate[size]();
 	this->size = size;
