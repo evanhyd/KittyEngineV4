@@ -42,9 +42,6 @@
     <ClCompile Include="timer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="zobrist.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="transposition.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -72,9 +69,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="timer.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="zobrist.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="transposition.h">

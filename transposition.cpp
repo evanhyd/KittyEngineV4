@@ -44,6 +44,7 @@ int Transposition::ProbeHashScore(const Transposition* tt, size_t tt_size, U64 p
 void Transposition::RecordHash(Transposition* tt, size_t tt_size, const Transposition& t, int side_to_move)
 {
 	size_t index = t.position_key & (tt_size - 1);
+
 	if (t.depth_searched_beyond >= tt[index].depth_searched_beyond)
 	{
 		tt[index] = t;

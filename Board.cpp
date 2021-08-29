@@ -177,7 +177,7 @@ void Board::ParseFEN(const string& FEN)
 	iter += 2;
 
 	//generate new position key
-	this->boardstate.zobrist.GenerateNewKey(this->boardstate.bitboards, this->boardstate.enpassant_square, this->boardstate.castle, this->boardstate.side_to_move);
+	this->boardstate.GenerateNewKey();
 }
 
 bool Board::ParseMove(const string& move_str)
@@ -201,7 +201,7 @@ bool Board::ParseMove(const string& move_str)
 		{
 			if (MakePseudoMove(pseudo_move))
 			{
-				this->repeated_position.insert(this->boardstate.zobrist.GetPositionKey());
+				this->repeated_position.insert(this->boardstate.position_key);
 				return true;
 			}
 			else return false;
@@ -234,7 +234,7 @@ void Board::ParsePosition(const string& position_str)
 	else if (position_str.substr(index, 7) == "endgame")
 	{
 		index += 8;
-		ParseFEN("8/8/8/8/8/8/PK5k/8 w - - 0 1");
+		ParseFEN("8/P7/8/8/8/4k3/1K6/8 w - - 1 5");
 	}
 	else if (position_str.substr(index, 3) == "fen")
 	{
@@ -321,45 +321,29 @@ void Board::ParseGo(const string& go_str)
 	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
 	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
 	
-	
 	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
 	{
 		this->transposition_table[i].Clear();
 	}
-	
 
 	Move best_move = 0;
 
-	for (int depth = 1, alpha = -INT_MAX, beta = INT_MAX; depth <= max_depth && depth < MAX_SEARCHING_DEPTH;)
+	for (int depth = 1; depth <= max_depth && depth < MAX_SEARCHING_DEPTH;)
 	{
-		int score = Search(depth, 0, alpha, beta);
+		int score = Search(depth, 0, -INT_MAX, INT_MAX);
 
 		if (timer.IsTimeOut()) break;
 		else
 		{
-			//fell out of the window, re-search
-			if (score <= alpha || score >= beta)
+			cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
+			for (int i = 0; i < this->pv_length[0]; ++i)
 			{
-				alpha = -INT_MAX;
-				beta = INT_MAX;
-				cout << "abnormal score, re-searching the current depth...\n";
+				pv_table[0][i].PrintMove();
+				cout << ' ';
 			}
-			else
-			{
-				//otherwise adjust the aspiration window
-				alpha = score - ITERATIVE_DEEPENING_ASPIRATION_WINDOW;
-				beta = score + ITERATIVE_DEEPENING_ASPIRATION_WINDOW;
-
-				cout << "info score cp " << score << " depth " << depth << " nodes " << visited_nodes << " pv ";
-				for (int i = 0; i < this->pv_length[0]; ++i)
-				{
-					pv_table[0][i].PrintMove();
-					cout << ' ';
-				}
-				cout << endl;
-				best_move = pv_table[0][0];
-				++depth;
-			}
+			cout << endl;
+			best_move = pv_table[0][0];
+			++depth;
 		}
 	}
 
@@ -369,8 +353,18 @@ void Board::ParseGo(const string& go_str)
 	if (best_move)
 	{
 		MakePseudoMove(best_move);
-		this->repeated_position.insert(this->boardstate.zobrist.GetPositionKey());
+		this->repeated_position.insert(this->boardstate.position_key);
 	}
+
+	/*
+	int hash_hit = 0;
+	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
+	{
+		if (this->transposition_table[i].hash_flag != Transposition::HASH_FLAG_EMPTY) ++hash_hit;
+	}
+
+	cout << "Hash Hit: " << hash_hit << " / " << TRANSPOSITION_TABLE_SIZE << '\n';
+    */
 }
 
 void Board::UCI()
@@ -392,7 +386,11 @@ void Board::UCI()
 		else if (command.find("ucinewgame") != string::npos) ParsePosition("position startpos");
 		else if (command.find("perft") != string::npos) ParsePerfTest(command);
 		else if (command.find("go") != string::npos) ParseGo(command);
-		else if (command.find("takeback") != string::npos) RestoreState();//remove the map entry
+		else if (command.find("takeback") != string::npos)
+		{
+			this->repeated_position.erase(this->boardstate.position_key);
+			RestoreState();
+		}
 		else if (command.find("quit") != string::npos) break;
 		else cout << "Invaild command\a\n";
 
@@ -658,15 +656,15 @@ bool Board::MakePseudoMove(Move move)
 	this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
 	this->boardstate.occupancies[side].FlipBit(source_square);
 	this->boardstate.occupancies[side].FlipBit(dest_square);
-	this->boardstate.zobrist.HashPiece(moving_piece, source_square);
-	this->boardstate.zobrist.HashPiece(moving_piece, dest_square);
+	this->boardstate.HashPiece(moving_piece, source_square);
+	this->boardstate.HashPiece(moving_piece, dest_square);
 
 	if (move.IsCapture())
 	{
 		int captured_piece = GetCapturedPiece(move);
 		this->boardstate.bitboards[captured_piece].FlipBit(dest_square);
 		this->boardstate.occupancies[!side].FlipBit(dest_square);
-		this->boardstate.zobrist.HashPiece(captured_piece, dest_square);
+		this->boardstate.HashPiece(captured_piece, dest_square);
 	}
 
 	int promoted_piece_type = move.GetPromotedPieceType();
@@ -675,8 +673,8 @@ bool Board::MakePseudoMove(Move move)
 		int promoted_piece = PIECE_LIST_TABLE[side][promoted_piece_type];
 		this->boardstate.bitboards[moving_piece].FlipBit(dest_square);
 		this->boardstate.bitboards[promoted_piece].FlipBit(dest_square);
-		this->boardstate.zobrist.HashPiece(moving_piece, dest_square);
-		this->boardstate.zobrist.HashPiece(promoted_piece, dest_square);
+		this->boardstate.HashPiece(moving_piece, dest_square);
+		this->boardstate.HashPiece(promoted_piece, dest_square);
 	}
 	
 	if (move.IsEnpassant())
@@ -686,16 +684,16 @@ bool Board::MakePseudoMove(Move move)
 
 		this->boardstate.bitboards[captured_pawn].FlipBit(captured_pawn_square);
 		this->boardstate.occupancies[!side].FlipBit(captured_pawn_square);
-		this->boardstate.zobrist.HashPiece(captured_pawn, captured_pawn_square);
+		this->boardstate.HashPiece(captured_pawn, captured_pawn_square);
 	}
 
 	//unhash the old enpassant square
-	if(this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
+	if(this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.HashEnpassant(this->boardstate.enpassant_square);
 	
 	if (move.IsDoublePush())
 	{
 		this->boardstate.enpassant_square = (side == WHITE ? source_square - 8 : source_square + 8);
-		this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
+		this->boardstate.HashEnpassant(this->boardstate.enpassant_square);
 	}
 	else this->boardstate.enpassant_square = INVALID_SQUARE;
 
@@ -717,14 +715,14 @@ bool Board::MakePseudoMove(Move move)
 		this->boardstate.bitboards[rook].FlipBit(rook_dest);
 		this->boardstate.occupancies[side].FlipBit(rook_source);
 		this->boardstate.occupancies[side].FlipBit(rook_dest);
-		this->boardstate.zobrist.HashPiece(rook, rook_source);
-		this->boardstate.zobrist.HashPiece(rook, rook_dest);
+		this->boardstate.HashPiece(rook, rook_source);
+		this->boardstate.HashPiece(rook, rook_dest);
 	}
 
-	this->boardstate.zobrist.HashCastle(this->boardstate.castle);
+	this->boardstate.HashCastle(this->boardstate.castle);
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[source_square];
 	this->boardstate.castle &= CASTLING_PERMISSION_FILTER_TABLE[dest_square];
-	this->boardstate.zobrist.HashCastle(this->boardstate.castle);
+	this->boardstate.HashCastle(this->boardstate.castle);
 
 
 	//update the occupancies
@@ -745,7 +743,7 @@ bool Board::MakePseudoMove(Move move)
 	else
 	{
 		this->boardstate.side_to_move = !this->boardstate.side_to_move;
-		this->boardstate.zobrist.HashSideToMove();
+		this->boardstate.HashSideToMove();
 		return true;
 	}
 }
@@ -755,11 +753,11 @@ void Board::MakeNullMove()
 	SaveState();
 
 	//unhash the old enpassant square
-	if (this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.zobrist.HashEnpassant(this->boardstate.enpassant_square);
+	if (this->boardstate.enpassant_square != INVALID_SQUARE) this->boardstate.HashEnpassant(this->boardstate.enpassant_square);
 	this->boardstate.enpassant_square = INVALID_SQUARE;
 
 	//update the side to move hash
-	this->boardstate.zobrist.HashSideToMove();
+	this->boardstate.HashSideToMove();
 	this->boardstate.side_to_move = !this->boardstate.side_to_move;
 }
 
@@ -934,23 +932,22 @@ void Board::SortNonQuietMoves(std::vector<Move>& moves)
 
 int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_reduced)
 {
-	int searched_beyond_depth = max_depth - depth;
-
 	//must before returning
 	this->pv_length[depth] = depth;
 
-	//threefold repetition
-	if (depth > 0 && this->repeated_position.find(this->boardstate.zobrist.GetPositionKey()) != this->repeated_position.end()) return 0;
+	int depth_searched_beyond = max_depth - depth;
 
+	//threefold repetition
+	if (depth > 0 && this->repeated_position.find(this->boardstate.position_key) != this->repeated_position.end()) return 0;
 
 	//fifty move rules
 	if (depth > 0 && this->boardstate.fifty_moves == 50) return 0;
 	
 
-	//look up the tt
+	//look up table
 	if (depth > 0)
 	{
-		int score = Transposition::ProbeHashScore(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.zobrist.GetPositionKey(), searched_beyond_depth, alpha, beta, this->boardstate.side_to_move);
+		int score = Transposition::ProbeHashScore(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.position_key, depth_searched_beyond, alpha, beta, this->boardstate.side_to_move);
 		if (score != Transposition::SCORE_EMPTY) return score;
 	}
 	
@@ -959,9 +956,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	if (depth >= max_depth)
 	{
 		++this->visited_nodes;
-		int score = Quiescence(alpha, beta);
-		Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, {this->boardstate.zobrist.GetPositionKey(), searched_beyond_depth, score, Transposition::HASH_FLAG_EXACT}, this->boardstate.side_to_move);
-		return score;
+		return Quiescence(alpha, beta);
 	}
 
 
@@ -971,7 +966,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	bool in_check = IsKingAttacked();
 
 	//null move pruning
-	if (!null_move_reduced && depth >= NULL_MOVE_DEPTH_REQUIRED && searched_beyond_depth >= 1 + REDUCTION_LIMIT && !pseudo_moves.empty() && !in_check)
+	if (!null_move_reduced && depth >= NULL_MOVE_DEPTH_REQUIRED && depth_searched_beyond >= 1 + REDUCTION_DEPTH && !pseudo_moves.empty() && !in_check)
 	{
 		int big_piece_num = 0;
 		for (int piece = PIECE_LIST_TABLE[this->boardstate.side_to_move][KNIGHT]; piece <= PIECE_LIST_TABLE[this->boardstate.side_to_move][QUEEN]; ++piece)
@@ -982,13 +977,14 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 		if (big_piece_num >= NULL_MOVE_PIECE_REQUIRED)
 		{
 			MakeNullMove();
-			int score = -Search(max_depth, depth + 1 + REDUCTION_LIMIT, -beta, -beta + 1, true);
+			int score = -Search(max_depth, depth + 1 + REDUCTION_DEPTH, -beta, -beta + 1, true);
 			RestoreState();
 			if (score >= beta) return beta;
 		}
 	}
 
-	int legal_moves_searched = 0, late_moves_searched = 0, hash_flag = Transposition::HASH_FLAG_ALPHA;
+
+	int legal_moves_searched = 0, hash_flag = Transposition::HASH_FLAG_ALPHA;
 	for (Move pseudo_move : pseudo_moves)
 	{
 		if (this->timer.IsTimeOut()) break;
@@ -1006,9 +1002,11 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 			bool enemy_in_check = IsKingAttacked();
 
 			//late move reduction after seraching all the non-quiet moves, pv moves, and killer moves
-			if (searched_beyond_depth >= REDUCTION_LIMIT && late_moves_searched >= LATE_MOVE_SEARCHED_REQUIRED && !in_check && !enemy_in_check)
+			if (depth_searched_beyond >= REDUCTION_DEPTH && legal_moves_searched >= LATE_MOVE_SEARCHED_REQUIRED && 
+				!in_check && !enemy_in_check && pseudo_move.IsQuietMove() && pseudo_move != this->pv_table[0][depth] &&
+				pseudo_move != this->killer_heuristic[depth][0] && pseudo_move != this->killer_heuristic[depth][1])
 			{
-				score = -Search(max_depth, depth + REDUCTION_LIMIT, -alpha - 1, -alpha);
+				score = -Search(max_depth, depth + REDUCTION_DEPTH, -alpha - 1, -alpha);
 			}
 			//if can't use late move reduction, then use pv search
 			//if late move reduction raises alpha, then use pv search
@@ -1028,7 +1026,6 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 		}
 
 		RestoreState();
-
 
 		if (score > alpha)
 		{
@@ -1051,14 +1048,12 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 					killer_heuristic[depth][0] = pseudo_move;
 				}
 
-				Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), searched_beyond_depth, beta, Transposition::HASH_FLAG_BETA}, this->boardstate.side_to_move);
+				Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.position_key, depth_searched_beyond, beta, Transposition::HASH_FLAG_BETA }, this->boardstate.side_to_move);
 				return beta;
 			}
 		}
 
 		++legal_moves_searched;
-		if (pseudo_move.IsQuietMove() && pseudo_move != this->pv_table[depth][depth] &&
-			pseudo_move != this->killer_heuristic[depth][0] && pseudo_move != this->killer_heuristic[depth][1]) ++late_moves_searched;
 	}
 
 	if (legal_moves_searched == 0)
@@ -1070,8 +1065,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 		hash_flag = Transposition::HASH_FLAG_EXACT;
 	}
 
-	Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.zobrist.GetPositionKey(), searched_beyond_depth, alpha, hash_flag }, this->boardstate.side_to_move);
-
+	Transposition::RecordHash(this->transposition_table, TRANSPOSITION_TABLE_SIZE, { this->boardstate.position_key, depth_searched_beyond, alpha, hash_flag }, this->boardstate.side_to_move);
 	return alpha;
 }
 
@@ -1080,7 +1074,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 int Board::Quiescence(int alpha, int beta)
 {
 	//threefold repetition
-	if (this->repeated_position.find(this->boardstate.zobrist.GetPositionKey()) != this->repeated_position.end()) return 0;
+	if (this->repeated_position.find(this->boardstate.position_key) != this->repeated_position.end()) return 0;
 
 	int score = Evaluate();
 
@@ -1143,7 +1137,7 @@ void Board::PrintBoard()
 
 	cout << "Enpassant: " << (this->boardstate.enpassant_square != INVALID_SQUARE ? SQUARE_STR_TABLE[this->boardstate.enpassant_square] : "empty") << '\n';
 	cout << "Castle: " << this->boardstate.castle << '\n';
-	cout << "Position Key: " << this->boardstate.zobrist.GetPositionKey() << '\n';
+	cout << "Position Key: " << this->boardstate.position_key << '\n';
 	if (this->boardstate.side_to_move == WHITE) cout << "White to move:\n";
 	else cout << "Black to move:\n";
 }
