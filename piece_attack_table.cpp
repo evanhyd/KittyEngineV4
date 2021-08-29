@@ -21,13 +21,13 @@ Bitboard MaskPawnAttack(int side, int square)
 
 	if (side == WHITE)
 	{
-		attack |= bitboard >> 7 & FILTER_A_FILE_MASK;
-		attack |= bitboard >> 9 & FILTER_H_FILE_MASK;
+		attack |= bitboard >> 7 & FILE_A_NOT_MASK;
+		attack |= bitboard >> 9 & FILE_H_NOT_MASK;
 	}
 	else
 	{
-		attack |= bitboard << 7 & FILTER_H_FILE_MASK;
-		attack |= bitboard << 9 & FILTER_A_FILE_MASK;
+		attack |= bitboard << 7 & FILE_H_NOT_MASK;
+		attack |= bitboard << 9 & FILE_A_NOT_MASK;
 	}
 
 	return attack;
@@ -39,16 +39,16 @@ Bitboard MaskKnightAttack(int square)
 	Bitboard attack = 0, bitboard = 0;
 	bitboard.SetBit(square);
 
-	attack |= bitboard >> 17 & FILTER_H_FILE_MASK;
-	attack |= bitboard >> 15 & FILTER_A_FILE_MASK;
-	attack |= bitboard >> 10 & FILTER_GH_FILE_MASK;
-	attack |= bitboard >> 6 & FILTER_AB_FILE_MASK;
+	attack |= bitboard >> 17 & FILE_H_NOT_MASK;
+	attack |= bitboard >> 15 & FILE_A_NOT_MASK;
+	attack |= bitboard >> 10 & FILE_GH_NOT_MASK;
+	attack |= bitboard >> 6 & FILE_AB_NOT_MASK;
 
 
-	attack |= bitboard << 17 & FILTER_A_FILE_MASK;
-	attack |= bitboard << 15 & FILTER_H_FILE_MASK;
-	attack |= bitboard << 10 & FILTER_AB_FILE_MASK;
-	attack |= bitboard << 6 & FILTER_GH_FILE_MASK;
+	attack |= bitboard << 17 & FILE_A_NOT_MASK;
+	attack |= bitboard << 15 & FILE_H_NOT_MASK;
+	attack |= bitboard << 10 & FILE_AB_NOT_MASK;
+	attack |= bitboard << 6 & FILE_GH_NOT_MASK;
 
 	return attack;
 }
@@ -59,16 +59,16 @@ Bitboard MaskKingAttack(int square)
 	Bitboard attack = 0, bitboard = 0;
 	bitboard.SetBit(square);
 
-	attack |= bitboard >> 9 & FILTER_H_FILE_MASK;
+	attack |= bitboard >> 9 & FILE_H_NOT_MASK;
 	attack |= bitboard >> 8;
-	attack |= bitboard >> 7 & FILTER_A_FILE_MASK;
-	attack |= bitboard >> 1 & FILTER_H_FILE_MASK;
+	attack |= bitboard >> 7 & FILE_A_NOT_MASK;
+	attack |= bitboard >> 1 & FILE_H_NOT_MASK;
 
 
-	attack |= bitboard << 9 & FILTER_A_FILE_MASK;
+	attack |= bitboard << 9 & FILE_A_NOT_MASK;
 	attack |= bitboard << 8;
-	attack |= bitboard << 7 & FILTER_H_FILE_MASK;
-	attack |= bitboard << 1 & FILTER_A_FILE_MASK;
+	attack |= bitboard << 7 & FILE_H_NOT_MASK;
+	attack |= bitboard << 1 & FILE_A_NOT_MASK;
 
 
 	return attack;
@@ -272,4 +272,67 @@ Bitboard GetRookAttackExact(int square, Bitboard occupancy)
 Bitboard GetQueenAttackExact(int square, Bitboard occupancy)
 {
 	return GetBishopAttackExact(square, occupancy) | GetRookAttackExact(square, occupancy);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+U64 ISOLATED_PAWN_MASK_TABLE[64] = {};
+U64 PASSED_PAWN_MASK_TABLE[2][64] = {};
+U64 BACKWARD_PAWN_MASK_TABLE[2][64] = {};
+
+void InitIsolatedPawnMaskTable()
+{
+	U64 file_mask = (1ull | 1ull << 8 | 1ull << 16 | 1ull << 24 | 1ull << 32 | 1ull << 40 | 1ull << 48 | 1ull << 56);
+
+	for (int file = 0; file < 8; ++file)
+	{
+		U64 isolated_pawn_mask = file_mask >> 1 & FILE_H_NOT_MASK | file_mask << 1 & FILE_A_NOT_MASK;
+
+		for (int rank = 0; rank < 8; ++rank)
+		{
+			int square = rank * 8 + file;
+			ISOLATED_PAWN_MASK_TABLE[square] = isolated_pawn_mask;
+		}
+
+		file_mask <<= 1;
+	}
+}
+
+
+void InitPassedPawnMaskTable()
+{
+	U64 file_mask = (1ull | 1ull << 8 | 1ull << 16 | 1ull << 24 | 1ull << 32 | 1ull << 40 | 1ull << 48 | 1ull << 56);
+
+	for (int file = 0; file < 8; ++file)
+	{
+		U64 passed_pawn_mask = file_mask | file_mask >> 1 & FILE_H_NOT_MASK | file_mask << 1 & FILE_A_NOT_MASK;
+		U64 white_passed_pawn_mask = 0, black_passed_pawn_mask = 0;
+
+		for (int rank = 1; rank <= 6; ++rank)
+		{
+			int pawn_square = rank * 8 + file;
+			int white_passed_pawn_square = (rank - 1) * 8 + file;
+			white_passed_pawn_mask |= passed_pawn_mask & RANK_MASK_TABLE[white_passed_pawn_square];
+			PASSED_PAWN_MASK_TABLE[WHITE][pawn_square] = white_passed_pawn_mask;
+		}
+
+		for (int rank = 6; rank >= 1; --rank)
+		{
+			int pawn_square = rank * 8 + file;
+			int black_passed_pawn_square = (rank + 1) * 8 + file;
+			black_passed_pawn_mask |= passed_pawn_mask & RANK_MASK_TABLE[black_passed_pawn_square];
+			PASSED_PAWN_MASK_TABLE[BLACK][pawn_square] = black_passed_pawn_mask;
+		}
+
+		file_mask <<= 1;
+	}
 }

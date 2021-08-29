@@ -183,11 +183,7 @@ bool Board::ParseMove(const string& move_str)
 	{
 		if (pseudo_move.GetSource() == source_square && pseudo_move.GetDest() == dest_square && pseudo_move.GetPromotedPieceType() == promoted_piece_type)
 		{
-			if (MakePseudoMove(pseudo_move))
-			{
-				this->repeated_position.insert(this->boardstate.position_key);
-				return true;
-			}
+			if (MakePseudoMove(pseudo_move)) return true;
 			else return false;
 		}
 	}
@@ -334,21 +330,7 @@ void Board::ParseGo(const string& go_str)
 	cout << "bestmove ";
 	best_move.PrintMove();
 	cout << endl;
-	if (best_move)
-	{
-		MakePseudoMove(best_move);
-		this->repeated_position.insert(this->boardstate.position_key);
-	}
-
-	/*
-	int hash_hit = 0;
-	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
-	{
-		if (this->transposition_table[i].hash_flag != Transposition::HASH_FLAG_EMPTY) ++hash_hit;
-	}
-
-	cout << "Hash Hit: " << hash_hit << " / " << TRANSPOSITION_TABLE_SIZE << '\n';
-    */
+	if (best_move) MakePseudoMove(best_move);
 }
 
 void Board::UCI()
@@ -370,11 +352,7 @@ void Board::UCI()
 		else if (command.find("ucinewgame") != string::npos) ParsePosition("position startpos");
 		else if (command.find("perft") != string::npos) ParsePerfTest(command);
 		else if (command.find("go") != string::npos) ParseGo(command);
-		else if (command.find("takeback") != string::npos)
-		{
-			this->repeated_position.erase(this->boardstate.position_key);
-			RestoreState();
-		}
+		else if (command.find("takeback") != string::npos) RestoreState();
 		else if (command.find("quit") != string::npos) break;
 		else cout << "Invaild command\a\n";
 
@@ -387,7 +365,7 @@ bool Board::IsSquareAttacked(int square, int attack_side)
 {
 	//pawn
 	int pawn = PIECE_LIST_TABLE[attack_side][PAWN];
-	if (GetPawnAttackExact(!attack_side, square) & this->boardstate.bitboards[pawn]) return true;
+	if (GetPawnAttackExact(attack_side^1, square) & this->boardstate.bitboards[pawn]) return true;
 
 	int knight = PIECE_LIST_TABLE[attack_side][KNIGHT];
 	if (GetKnightAttackExact(square) & this->boardstate.bitboards[knight]) return true;
@@ -412,7 +390,7 @@ bool Board::IsKingAttacked()
 	int king_side = this->boardstate.side_to_move;
 	int king = PIECE_LIST_TABLE[king_side][KING];
 	int kign_square = this->boardstate.bitboards[king].GetLeastSigBit();
-	return IsSquareAttacked(kign_square, !king_side);
+	return IsSquareAttacked(kign_square, king_side^1);
 }
 
 int Board::GetCapturedPiece(Move move)
@@ -466,7 +444,7 @@ vector<Move> Board::GetPseudoMoves()
 	}
 	
 
-	Bitboard double_pawn_push = (side == WHITE ? (pawn_push & GET_RANK_3_MASK) >> 8 : (pawn_push & GET_RANK_6_MASK) << 8) & not_occupancy;
+	Bitboard double_pawn_push = (side == WHITE ? (pawn_push & RANK_3_MASK) >> 8 : (pawn_push & RANK_6_MASK) << 8) & not_occupancy;
 	while (double_pawn_push)
 	{
 		int dest_square = double_pawn_push.GetLeastSigBit();
@@ -558,7 +536,7 @@ vector<Move> Board::GetPseudoMoves()
 				int adj_square = (castle_type == KING_SIDE ? king_square + 1 : king_square - 1);
 				int dest_square = (castle_type == KING_SIDE ? king_square + 2 : king_square - 2);
 
-				if (!IsSquareAttacked(king_square, !side) && !IsSquareAttacked(adj_square, !side))
+				if (!IsSquareAttacked(king_square, side^1) && !IsSquareAttacked(adj_square, side^1))
 				{
 					pseudo_moves.push_back(Move(king_square, dest_square, king, 0, Move::CASTLING_FLAG));
 				}
@@ -726,7 +704,7 @@ bool Board::MakePseudoMove(Move move)
 	}
 	else
 	{
-		this->boardstate.side_to_move = !this->boardstate.side_to_move;
+		this->boardstate.side_to_move = this->boardstate.side_to_move^1;
 		this->boardstate.HashSideToMove();
 		return true;
 	}
@@ -742,17 +720,19 @@ void Board::MakeNullMove()
 
 	//update the side to move hash
 	this->boardstate.HashSideToMove();
-	this->boardstate.side_to_move = !this->boardstate.side_to_move;
+	this->boardstate.side_to_move = this->boardstate.side_to_move^1;
 }
 
 void Board::SaveState()
 {
+	this->repeated_position.insert(this->boardstate.position_key);
 	this->boardstate_history.PushBack(this->boardstate);
 }
 void Board::RestoreState()
 {
 	this->boardstate = this->boardstate_history.Back();
 	this->boardstate_history.PopBack();
+	this->repeated_position.erase(this->boardstate.position_key);
 }
 
 
@@ -823,7 +803,7 @@ int Board::Evaluate()
 	major_piece_num[BOTH] = major_piece_num[WHITE] + major_piece_num[BLACK];
 
 	
-	bool is_end_game = minor_piece_num[!this->boardstate.side_to_move] + major_piece_num[!this->boardstate.side_to_move] <= 3;
+	bool is_end_game = minor_piece_num[this->boardstate.side_to_move ^ 1] + major_piece_num[this->boardstate.side_to_move ^ 1] <= 3;
 
 
 	for (Bitboard bitboard = this_bitboards[WHITE_PAWN]; bitboard; bitboard.PopBit())
@@ -831,9 +811,17 @@ int Board::Evaluate()
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
 
-		//stacked pawns penalty, double count intended
-		Bitboard pawn_file = bitboard & FILE_MASK_TABLE[square];
-		score -= (pawn_file.CountBit() - 1) * 20;
+		//stacked pawns penalty
+		Bitboard pawns = this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square];
+		if (pawns.CountBit() > 1) score -= STACKED_PAWN_PENALTY;
+
+		//isolated pawn penalty
+		pawns = this_bitboards[WHITE_PAWN] & ISOLATED_PAWN_MASK_TABLE[square];
+		if (pawns.CountBit() == 0) score -= ISOLATED_PAWN_PENALTY;
+
+		//passed pawn bonus
+		pawns = this_bitboards[BLACK_PAWN] & PASSED_PAWN_MASK_TABLE[WHITE][square];
+		if (pawns.CountBit() == 0) score += PASSED_PAWN_BONUS_TABLE[WHITE][GetRank(square)];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_PAWN]; bitboard; bitboard.PopBit())
@@ -841,25 +829,34 @@ int Board::Evaluate()
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
 
-		Bitboard pawn_file = bitboard & FILE_MASK_TABLE[square];
-		score += (pawn_file.CountBit() - 1) * 20;
+		//stacked pawns penalty
+		Bitboard pawns = this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square];
+		if (pawns.CountBit() > 1) score += STACKED_PAWN_PENALTY;
+
+		//isolated pawn penalty
+		pawns = this_bitboards[BLACK_PAWN] & ISOLATED_PAWN_MASK_TABLE[square];
+		if (pawns.CountBit() == 0) score += ISOLATED_PAWN_PENALTY;
+
+		//passed pawn bonus
+		pawns = this_bitboards[WHITE_PAWN] & PASSED_PAWN_MASK_TABLE[BLACK][square];
+		if (pawns.CountBit() == 0) score -= PASSED_PAWN_BONUS_TABLE[BLACK][GetRank(square)];
 	}
 
 
+	if (this_bitboards[WHITE_PAWN].CountBit() == 0 && this_bitboards[BLACK_PAWN].CountBit() == 0 &&
+		major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
+
+
+	//king early/endgame positional bonus
 	int white_king_square = this_bitboards[WHITE_KING].GetLeastSigBit();
 	score += PIECE_KING_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][white_king_square];
 	int black_king_square = this_bitboards[BLACK_KING].GetLeastSigBit();
 	score -= PIECE_KING_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][black_king_square];
 
 
-	
-	if (this_bitboards[WHITE_PAWN].CountBit() == 0 && this_bitboards[BLACK_PAWN].CountBit() == 0 && 
-		major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
-
-
 	//bishop pair compensation
-	if (this_bitboards[WHITE_BISHOP].CountBit() >= 2) score += 50;
-	if (this_bitboards[BLACK_BISHOP].CountBit() >= 2) score -= 50;
+	if (this_bitboards[WHITE_BISHOP].CountBit() >= 2 && this_bitboards[BLACK_BISHOP].CountBit() == 0) score += BISHOP_PAIR_BONUS;
+	else if (this_bitboards[BLACK_BISHOP].CountBit() >= 2 && this_bitboards[WHITE_BISHOP].CountBit() == 0) score -= BISHOP_PAIR_BONUS;
 
 
 	return this->boardstate.side_to_move == WHITE ? score : -score;
@@ -936,19 +933,19 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	if (depth > 0 && this->boardstate.fifty_moves == 50) return 0;
 	
 
-	//look up table
-	if (depth > 0)
-	{
-		int score = Transposition::ProbeHashScore(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.position_key, depth_searched_beyond, alpha, beta, this->boardstate.side_to_move);
-		if (score != Transposition::SCORE_EMPTY) return score;
-	}
-	
-
 	//should also check the max_seraching depth to avoid overflow
 	if (depth >= max_depth)
 	{
 		++this->visited_nodes;
 		return Quiescence(alpha, beta);
+	}
+
+	
+	//look up table
+	if (depth > 0)
+	{
+		int score = Transposition::ProbeHashScore(this->transposition_table, TRANSPOSITION_TABLE_SIZE, this->boardstate.position_key, depth_searched_beyond, alpha, beta, this->boardstate.side_to_move);
+		if (score != Transposition::SCORE_EMPTY) return score;
 	}
 
 

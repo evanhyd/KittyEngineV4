@@ -11,8 +11,11 @@ int main()
 {
 	InitRankMaskTable();
 	InitFileMaskTable();
+
 	InitLeaperAttackTable();
 	InitSliderAttackTable();
+	InitIsolatedPawnMaskTable();
+	InitPassedPawnMaskTable();
 	Boardstate::InitZobristKeys();
 
 	Board board;

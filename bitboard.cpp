@@ -1,4 +1,5 @@
 #include "bitboard.h"
+#include "board.h"
 #include <iostream>
 #include <intrin.h>
 
@@ -7,8 +8,8 @@ using std::cin;
 
 
 U64 RANK_MASK_TABLE[64] = {};
-U64 FILE_MASK_TABLE[64] = {};
 U64 RANK_NOT_MASK_TABLE[64] = {};
+U64 FILE_MASK_TABLE[64] = {};
 U64 FILE_NOT_MASK_TABLE[64] = {};
 
 void InitRankMaskTable()
@@ -41,6 +42,8 @@ void InitFileMaskTable()
 		file_mask <<= 1;
 	}
 }
+
+
 
 int GetRank(int square)
 {

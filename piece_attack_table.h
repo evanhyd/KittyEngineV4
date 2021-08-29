@@ -59,4 +59,12 @@ Bitboard GetQueenAttackExact(int square, Bitboard occupancy);
 
 
 
+extern U64 ISOLATED_PAWN_MASK_TABLE[64];
+extern U64 PASSED_PAWN_MASK_TABLE[2][64];
+extern U64 BACKWARD_PAWN_MASK_TABLE[2][64];
+void InitIsolatedPawnMaskTable();
+void InitPassedPawnMaskTable();
+
+
+
 
