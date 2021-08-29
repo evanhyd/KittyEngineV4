@@ -6,6 +6,60 @@ using std::cout;
 using std::cin;
 
 
+U64 RANK_MASK_TABLE[64] = {};
+U64 FILE_MASK_TABLE[64] = {};
+U64 RANK_NOT_MASK_TABLE[64] = {};
+U64 FILE_NOT_MASK_TABLE[64] = {};
+
+void InitRankMaskTable()
+{
+	U64 rank_mask = 0b11111111ull;
+	for (int rank = 0; rank < 8; ++rank)
+	{
+		for (int file = 0; file < 8; ++file)
+		{
+			int square = rank * 8 + file;
+			RANK_MASK_TABLE[square] = rank_mask;
+			RANK_NOT_MASK_TABLE[square] = ~rank_mask;
+		}
+
+		rank_mask <<= 8;
+	}
+}
+void InitFileMaskTable()
+{
+	U64 file_mask = (1ull | 1ull << 8 | 1ull << 16 | 1ull << 24 | 1ull << 32 | 1ull << 40 | 1ull << 48 | 1ull << 56);
+	for (int file = 0; file < 8; ++file)
+	{
+		for (int rank = 0; rank < 8; ++rank)
+		{
+			int square = rank * 8 + file;
+			FILE_MASK_TABLE[square] = file_mask;
+			FILE_NOT_MASK_TABLE[square] = ~file_mask;
+		}
+
+		file_mask <<= 1;
+	}
+}
+
+int GetRank(int square)
+{
+	return square >> 3;
+}
+int GetFile(int square)
+{
+	return square & (8-1);
+}
+int ToRank(char c)
+{
+	return 8 - (c - '0');
+}
+int ToFile(char c)
+{
+	return tolower(c) - 'a';
+}
+
+
 int Bitboard::GetBit(int square) const
 {
 	return this->bitboard >> square & 1;

@@ -1,4 +1,5 @@
-﻿  board.cpp
+﻿  bitboard.cpp
+  board.cpp
   boardstate.cpp
   main.cpp
   move.cpp

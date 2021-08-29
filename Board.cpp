@@ -98,22 +98,6 @@ int FenToPieceType(char FEN)
 	}
 }
 
-int GetRank(int square)
-{
-	return square >> 3;
-}
-int GetFile(int square)
-{
-	return square & 7;
-}
-int ToRank(char c)
-{
-	return 8 - (c - '0');
-}
-int ToFile(char c)
-{
-	return tolower(c) - 'a';
-}
 
 
 void Board::ParseFEN(const string& FEN)
@@ -846,13 +830,21 @@ int Board::Evaluate()
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
+
+		//stacked pawns penalty, double count intended
+		Bitboard pawn_file = bitboard & FILE_MASK_TABLE[square];
+		score -= (pawn_file.CountBit() - 1) * 20;
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_PAWN]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
+
+		Bitboard pawn_file = bitboard & FILE_MASK_TABLE[square];
+		score += (pawn_file.CountBit() - 1) * 20;
 	}
+
 
 	int white_king_square = this_bitboards[WHITE_KING].GetLeastSigBit();
 	score += PIECE_KING_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][white_king_square];
@@ -966,7 +958,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	bool in_check = IsKingAttacked();
 
 	//null move pruning
-	if (!null_move_reduced && depth >= NULL_MOVE_DEPTH_REQUIRED && depth_searched_beyond >= 1 + REDUCTION_DEPTH && !pseudo_moves.empty() && !in_check)
+	if (!null_move_reduced && depth >= NULL_MOVE_DEPTH_REQUIRED && depth_searched_beyond >= NULL_MOVE_DEPTH_REDUCTION && !pseudo_moves.empty() && !in_check)
 	{
 		int big_piece_num = 0;
 		for (int piece = PIECE_LIST_TABLE[this->boardstate.side_to_move][KNIGHT]; piece <= PIECE_LIST_TABLE[this->boardstate.side_to_move][QUEEN]; ++piece)
@@ -977,13 +969,13 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 		if (big_piece_num >= NULL_MOVE_PIECE_REQUIRED)
 		{
 			MakeNullMove();
-			int score = -Search(max_depth, depth + 1 + REDUCTION_DEPTH, -beta, -beta + 1, true);
+			int score = -Search(max_depth, depth + NULL_MOVE_DEPTH_REDUCTION, -beta, -beta + 1, true);
 			RestoreState();
 			if (score >= beta) return beta;
 		}
 	}
 
-
+	bool is_pv_node_candidate = false;
 	int legal_moves_searched = 0, hash_flag = Transposition::HASH_FLAG_ALPHA;
 	for (Move pseudo_move : pseudo_moves)
 	{
@@ -992,7 +984,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 
 		int score;
 
-		//first move full search, also skip pv node
+		//first move full search
 		if (legal_moves_searched == 0)
 		{
 			score = -Search(max_depth, depth + 1, -beta, -alpha);
@@ -1002,11 +994,12 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 			bool enemy_in_check = IsKingAttacked();
 
 			//late move reduction after seraching all the non-quiet moves, pv moves, and killer moves
-			if (depth_searched_beyond >= REDUCTION_DEPTH && legal_moves_searched >= LATE_MOVE_SEARCHED_REQUIRED && 
+			//only execute LMR when this node is less likely to be a pv node candidate
+			if (depth_searched_beyond >= LATE_MOVE_DEPTH_REDUCTION && legal_moves_searched >= LATE_MOVE_SEARCHED_REQUIRED && !is_pv_node_candidate &&
 				!in_check && !enemy_in_check && pseudo_move.IsQuietMove() && pseudo_move != this->pv_table[0][depth] &&
 				pseudo_move != this->killer_heuristic[depth][0] && pseudo_move != this->killer_heuristic[depth][1])
 			{
-				score = -Search(max_depth, depth + REDUCTION_DEPTH, -alpha - 1, -alpha);
+				score = -Search(max_depth, depth + LATE_MOVE_DEPTH_REDUCTION, -alpha - 1, -alpha);
 			}
 			//if can't use late move reduction, then use pv search
 			//if late move reduction raises alpha, then use pv search
@@ -1030,6 +1023,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 		if (score > alpha)
 		{
 			alpha = score;
+			is_pv_node_candidate = true;
 			hash_flag = Transposition::HASH_FLAG_EXACT;
 
 			//update the current pv move and copy over from child's pv moves

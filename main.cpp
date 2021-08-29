@@ -9,6 +9,8 @@ using namespace std;
 
 int main()
 {
+	InitRankMaskTable();
+	InitFileMaskTable();
 	InitLeaperAttackTable();
 	InitSliderAttackTable();
 	Boardstate::InitZobristKeys();

@@ -17,7 +17,7 @@ void BoardstateStack::Clear()
 {
 	this->size = 0;
 }
-int BoardstateStack::Size()
+size_t BoardstateStack::Size()
 {
 	return this->size;
 }

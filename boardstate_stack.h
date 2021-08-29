@@ -6,14 +6,14 @@ using namespace std;
 class BoardstateStack
 {
 	Boardstate* stack;
-	int size;
+	size_t size;
 
 public:
 	bool Empty();
 	void PushBack(const Boardstate& new_boardstate);
 	void PopBack();
 	void Clear();
-	int Size();
+	size_t Size();
 	Boardstate& Back();
 
 	BoardstateStack(size_t size);

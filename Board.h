@@ -39,10 +39,7 @@ char PieceToAscii(int piece);
 char PieceToFen(int piece);
 int FenToPiece(char FEN);
 int FenToPieceType(char FEN);
-int GetRank(int square);
-int GetFile(int square);
-int ToRank(char c);
-int ToFile(char c);
+
 
 class Board
 {
@@ -50,8 +47,9 @@ class Board
 	static constexpr size_t BOARDSTATE_STACK_SIZE = 256;
 	static constexpr int NULL_MOVE_DEPTH_REQUIRED = 1;
 	static constexpr int NULL_MOVE_PIECE_REQUIRED = 2;
+	static constexpr int NULL_MOVE_DEPTH_REDUCTION = 3;
 	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4; //change this value if the engine failed to find good moves
-	static constexpr int REDUCTION_DEPTH = 2;
+	static constexpr int LATE_MOVE_DEPTH_REDUCTION = 3;
 	static constexpr int ITERATIVE_DEEPENING_ASPIRATION_WINDOW = 50;//change this value if the branching factor is abnormal
 	static constexpr size_t REPEATED_POSITION_SIZE = 256;
 	static constexpr size_t TRANSPOSITION_TABLE_SIZE = 8388608; //power of 2, can use & to save time
