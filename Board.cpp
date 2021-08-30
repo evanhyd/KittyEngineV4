@@ -267,12 +267,20 @@ void Board::ParseGo(const string& go_str)
 	long long remaining_time_ms = Timer::DEFAULT_THINKING_TIME_MS;
 	long long increment_time_ms = Timer::DEFAULT_INCREMENT_TIME_MS;
 
-	size_t index = go_str.find("depth");
+	size_t index = go_str.find("infinite");
 
 	if (index != string::npos)
 	{
-		if (go_str.find("infinite") != string::npos) max_depth = MAX_SEARCHING_DEPTH;
-		else max_depth = stoi(go_str.substr(index + 6));
+		max_depth = MAX_SEARCHING_DEPTH;
+	}
+	else if (go_str.find("depth") != string::npos)
+	{
+		max_depth = stoi(go_str.substr(9));
+	}
+	else if (go_str.find("movetime") != string::npos)
+	{
+		remaining_time_ms = stoi(go_str.substr(12));
+		increment_time_ms = remaining_time_ms;
 	}
 	else
 	{
