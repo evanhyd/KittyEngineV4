@@ -108,7 +108,7 @@ void Board::ParseFEN(const string& FEN)
 	fill_n(&this->killer_heuristic[0][0], sizeof(this->killer_heuristic) / sizeof(this->killer_heuristic[0][0]), 0);
 	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
 	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
-	this->repeated_position.clear();
+	fill(this->repeated_position, this->repeated_position + REPEATED_POSITION_SIZE, false);
 	
 
 	auto iter = FEN.begin();
@@ -510,7 +510,7 @@ vector<Move> Board::GetPseudoMoves()
 		int source_square = knight_bitboard.GetLeastSigBit();
 
 		//knight attacks empty or enemy occupied squares
-		for (Bitboard knight_attack = KNIGHT_ATTACK_TABLE[source_square] & ~this->boardstate.occupancies[side]; knight_attack; knight_attack.PopBit())
+		for (Bitboard knight_attack = GetKnightAttackExact(source_square) & ~this->boardstate.occupancies[side]; knight_attack; knight_attack.PopBit())
 		{
 			int dest_square = knight_attack.GetLeastSigBit();
 			if(this->boardstate.occupancies[!side].GetBit(dest_square)) pseudo_moves.push_back(Move(source_square, dest_square, knight, 0, Move::CAPTURE_FLAG));
@@ -524,7 +524,7 @@ vector<Move> Board::GetPseudoMoves()
 	int king = PIECE_LIST_TABLE[side][KING];
 	int king_square = this->boardstate.bitboards[king].GetLeastSigBit();
 
-	for (Bitboard king_attack = KING_ATTACK_TABLE[king_square] & ~this->boardstate.occupancies[side]; king_attack; king_attack.PopBit())
+	for (Bitboard king_attack = GetKingAttackExact(king_square) & ~this->boardstate.occupancies[side]; king_attack; king_attack.PopBit())
 	{
 		int dest_square = king_attack.GetLeastSigBit();
 		
@@ -731,16 +731,17 @@ void Board::MakeNullMove()
 	this->boardstate.side_to_move = this->boardstate.side_to_move^1;
 }
 
+//huge bottleneck
 void Board::SaveState()
 {
-	this->repeated_position.insert(this->boardstate.position_key);
+	this->repeated_position[this->boardstate.position_key & (REPEATED_POSITION_SIZE - 1)] = true;
 	this->boardstate_history.PushBack(this->boardstate);
 }
 void Board::RestoreState()
 {
 	this->boardstate = this->boardstate_history.Back();
 	this->boardstate_history.PopBack();
-	this->repeated_position.erase(this->boardstate.position_key);
+	this->repeated_position[this->boardstate.position_key & (REPEATED_POSITION_SIZE - 1)] = false;
 }
 
 
@@ -788,18 +789,30 @@ int Board::Evaluate()
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_KNIGHT] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_KNIGHT][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetKnightAttackExact(square) & ~this->boardstate.occupancies[WHITE];
+		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_KNIGHT]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_KNIGHT];
 	}
 
 	for (Bitboard bitboard = this_bitboards[WHITE_BISHOP]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_BISHOP] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_BISHOP][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
+		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_BISHOP]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_BISHOP];
 	}
 
 	for (Bitboard bitboard = this_bitboards[WHITE_ROOK]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_ROOK] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_ROOK][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
+		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_ROOK]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_ROOK];
 
 		//semi open / open file bonuses
 		if ((this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square]) == 0)
@@ -813,25 +826,48 @@ int Board::Evaluate()
 	{
 		int square = bitboard.GetLeastSigBit();
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_QUEEN] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_QUEEN][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
+		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_QUEEN]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_QUEEN];
 	}
+
+
+
+
+
+
+
 
 
 	for (Bitboard bitboard = this_bitboards[BLACK_KNIGHT]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_KNIGHT] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_KNIGHT][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetKnightAttackExact(square) & ~this->boardstate.occupancies[BLACK];
+		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_KNIGHT]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_KNIGHT];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_BISHOP]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_BISHOP] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_BISHOP][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
+		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_BISHOP]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_BISHOP];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_ROOK]; bitboard; bitboard.PopBit())
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_ROOK] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_ROOK][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
+		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_ROOK]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_ROOK];
 
 		//semi open / open file bonuses
 		if ((this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square]) == 0)
@@ -845,6 +881,10 @@ int Board::Evaluate()
 	{
 		int square = bitboard.GetLeastSigBit();
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_QUEEN] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_QUEEN][square];
+
+		//mobility bonus
+		Bitboard attack_table = GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
+		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_QUEEN]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_QUEEN];
 	}
 
 	minor_piece_num[WHITE] = this_bitboards[WHITE_KNIGHT].CountBit() + this_bitboards[WHITE_BISHOP].CountBit();
@@ -975,7 +1015,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	int depth_searched_beyond = max_depth - depth;
 
 	//threefold repetition
-	if (depth > 0 && this->repeated_position.find(this->boardstate.position_key) != this->repeated_position.end()) return 0;
+	if (depth > 0 && this->repeated_position[this->boardstate.position_key & (REPEATED_POSITION_SIZE - 1)]) return 0;
 
 	//fifty move rules
 	if (depth > 0 && this->boardstate.fifty_moves == 50) return 0;
@@ -1113,7 +1153,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 int Board::Quiescence(int alpha, int beta)
 {
 	//threefold repetition
-	if (this->repeated_position.find(this->boardstate.position_key) != this->repeated_position.end()) return 0;
+	if (this->repeated_position[this->boardstate.position_key & (REPEATED_POSITION_SIZE - 1)]) return 0;
 
 	int score = Evaluate();
 
@@ -1182,9 +1222,8 @@ void Board::PrintBoard()
 }
 
 
-Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), killer_heuristic{}, pv_length{}, pv_table{}, timer()
+Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), killer_heuristic{}, pv_length{}, pv_table{}, repeated_position{}, timer()
 {
-	this->repeated_position.rehash(REPEATED_POSITION_SIZE);
 	this->transposition_table = new Transposition[TRANSPOSITION_TABLE_SIZE]();
 	this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }

@@ -6,6 +6,7 @@
 #include "transposition.h"
 #include <string>
 #include <vector>
+#include <set>
 #include <unordered_set>
 
 enum : int
@@ -51,9 +52,8 @@ class Board
 	static constexpr int NULL_MOVE_DEPTH_REDUCTION = 3;
 	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4; //change this value if the engine failed to find good moves
 	static constexpr int LATE_MOVE_DEPTH_REDUCTION = 3;
-	static constexpr int ITERATIVE_DEEPENING_ASPIRATION_WINDOW = 50;//change this value if the branching factor is abnormal
-	static constexpr size_t REPEATED_POSITION_SIZE = 256;
-	static constexpr size_t TRANSPOSITION_TABLE_SIZE = 8388608; //power of 2, can use & to save time
+	static constexpr size_t REPEATED_POSITION_SIZE = 16384; //power of 2 for fast modulo
+	static constexpr size_t TRANSPOSITION_TABLE_SIZE = 8388608; //power of 2 for fast modulo
 
 
 	//evaluation
@@ -69,6 +69,11 @@ class Board
 	static constexpr int OPEN_FILE_BONUS = 15;
 	static constexpr int BISHOP_PAIR_BONUS = 50;
 
+	//piece mobility
+	static constexpr int PIECE_MOBILITY_THRESHOLD_TABLE[12] = {0, 4, 6, 7, 0, 0, 0, 4, 6, 7, 0, 0};
+	static constexpr int PIECE_MOBILITY_BONUS_TABLE[12] = { 0, 4, 5, 2, 1, 0 , 0, 4, 5, 2, 1, 0 };
+
+	//piece values
 	static constexpr int MATE_SCORE = -30000;
 	static constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 0, 100, 330, 345, 500, 975, 0 };
 	static constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
@@ -201,10 +206,10 @@ class Board
 		{
 			{//white pawn early game
 				 0,  0,  0,  0,  0,  0,  0,  0,
-				35, 35, 37, 50, 50, 37, 35, 35,
-				25, 25, 27, 30, 30, 27, 25, 25,
-				12, 12, 15, 25, 25, 15, 12, 12,
-				 5,  5,  5, 20, 20,  5,  5,  5,
+				22, 24, 26, 28, 28, 26, 24, 22,
+				19, 21, 23, 25, 25, 23, 21, 19,
+				12, 12, 15, 22, 22, 15, 12, 12,
+				 5,  5,  0, 20, 20,  5,  5,  5,
 				 5,  0, -8,  0,  0,-10,  0,  5,
 				 5, 10,  0,-20,-20,  0, 10,  5,
 				 0,  0,  0,  0,  0,  0,  0,  0
@@ -225,10 +230,10 @@ class Board
 				 0,  0,  0,  0,  0,  0,  0,  0,
 				 5, 10,  0,-20,-20,  0, 10,  5,
 				 5,  0, -8,  0,  0,-10,  0,  5,
-				 5,  5,  5, 20, 20,  5,  5,  5,
-				12, 12, 15, 25, 25, 15, 12, 12,
-				25, 25, 27, 30, 30, 27, 25, 25,
-				35, 35, 37, 50, 50, 37, 35, 35,
+				 5,  5,  0, 20, 20,  5,  5,  5,
+				12, 12, 15, 22, 22, 15, 12, 12,
+				19, 21, 23, 25, 25, 23, 21, 19,
+				22, 24, 26, 28, 28, 26, 24, 22,
 				 0,  0,  0,  0,  0,  0,  0,  0
 			},
 			{//black pawn late game
@@ -302,7 +307,7 @@ public:
 	int pv_length[MAX_SEARCHING_DEPTH];
 	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
 
-	std::unordered_set<U64> repeated_position;
+	bool repeated_position[REPEATED_POSITION_SIZE];
 	Transposition* transposition_table;
 
 	Timer timer;
