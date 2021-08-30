@@ -775,22 +775,68 @@ int Board::Evaluate()
 
 	const Bitboard* this_bitboards = this->boardstate.bitboards;
 
-	for (int piece = WHITE_KNIGHT; piece <= WHITE_QUEEN; ++piece)
+
+	for (Bitboard bitboard = this_bitboards[WHITE_KNIGHT]; bitboard; bitboard.PopBit())
 	{
-		for (Bitboard bitboard = this_bitboards[piece]; bitboard; bitboard.PopBit())
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_KNIGHT] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_KNIGHT][square];
+	}
+
+	for (Bitboard bitboard = this_bitboards[WHITE_BISHOP]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_BISHOP] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_BISHOP][square];
+	}
+
+	for (Bitboard bitboard = this_bitboards[WHITE_ROOK]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_ROOK] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_ROOK][square];
+
+		//semi open / open file bonuses
+		if ((this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square]) == 0)
 		{
-			int square = bitboard.GetLeastSigBit();
-			score += PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
+			if ((this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square]) == 0) score += OPEN_FILE_BONUS;
+			else score += SEMI_OPEN_FILE_BONUS;
 		}
 	}
 
-	for (int piece = BLACK_KNIGHT; piece <= BLACK_QUEEN; ++piece)
+	for (Bitboard bitboard = this_bitboards[WHITE_QUEEN]; bitboard; bitboard.PopBit())
 	{
-		for (Bitboard bitboard = this_bitboards[piece]; bitboard; bitboard.PopBit())
+		int square = bitboard.GetLeastSigBit();
+		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_QUEEN] + PIECE_POSITIONAL_VALUE_TABLE[WHITE_QUEEN][square];
+	}
+
+
+	for (Bitboard bitboard = this_bitboards[BLACK_KNIGHT]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_KNIGHT] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_KNIGHT][square];
+	}
+
+	for (Bitboard bitboard = this_bitboards[BLACK_BISHOP]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_BISHOP] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_BISHOP][square];
+	}
+
+	for (Bitboard bitboard = this_bitboards[BLACK_ROOK]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_ROOK] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_ROOK][square];
+
+		//semi open / open file bonuses
+		if ((this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square]) == 0)
 		{
-			int square = bitboard.GetLeastSigBit();
-			score -= PIECE_MATERIAL_VALUE_TABLE[piece] + PIECE_POSITIONAL_VALUE_TABLE[piece][square];
+			if ((this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square]) == 0) score -= OPEN_FILE_BONUS;
+			else score -= SEMI_OPEN_FILE_BONUS;
 		}
+	}
+
+	for (Bitboard bitboard = this_bitboards[BLACK_QUEEN]; bitboard; bitboard.PopBit())
+	{
+		int square = bitboard.GetLeastSigBit();
+		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_QUEEN] + PIECE_POSITIONAL_VALUE_TABLE[BLACK_QUEEN][square];
 	}
 
 	minor_piece_num[WHITE] = this_bitboards[WHITE_KNIGHT].CountBit() + this_bitboards[WHITE_BISHOP].CountBit();
@@ -812,16 +858,13 @@ int Board::Evaluate()
 		score += PIECE_MATERIAL_VALUE_TABLE[WHITE_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[WHITE][is_end_game][square];
 
 		//stacked pawns penalty
-		Bitboard pawns = this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square];
-		if (pawns.CountBit() > 1) score -= STACKED_PAWN_PENALTY;
+		if (this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square]) score -= STACKED_PAWN_PENALTY;
 
 		//isolated pawn penalty
-		pawns = this_bitboards[WHITE_PAWN] & ISOLATED_PAWN_MASK_TABLE[square];
-		if (pawns.CountBit() == 0) score -= ISOLATED_PAWN_PENALTY;
+		if ((this_bitboards[WHITE_PAWN] & ISOLATED_PAWN_MASK_TABLE[square]) == 0) score -= ISOLATED_PAWN_PENALTY;
 
 		//passed pawn bonus
-		pawns = this_bitboards[BLACK_PAWN] & PASSED_PAWN_MASK_TABLE[WHITE][square];
-		if (pawns.CountBit() == 0) score += PASSED_PAWN_BONUS_TABLE[WHITE][GetRank(square)];
+		if ((this_bitboards[BLACK_PAWN] & PASSED_PAWN_MASK_TABLE[WHITE][square]) == 0) score += PASSED_PAWN_BONUS_TABLE[WHITE][GetRank(square)];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_PAWN]; bitboard; bitboard.PopBit())
@@ -830,16 +873,13 @@ int Board::Evaluate()
 		score -= PIECE_MATERIAL_VALUE_TABLE[BLACK_PAWN] + PIECE_PAWN_POSITIONAL_VALUE_TABLE[BLACK][is_end_game][square];
 
 		//stacked pawns penalty
-		Bitboard pawns = this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square];
-		if (pawns.CountBit() > 1) score += STACKED_PAWN_PENALTY;
+		if (this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square]) score += STACKED_PAWN_PENALTY;
 
 		//isolated pawn penalty
-		pawns = this_bitboards[BLACK_PAWN] & ISOLATED_PAWN_MASK_TABLE[square];
-		if (pawns.CountBit() == 0) score += ISOLATED_PAWN_PENALTY;
+		if ((this_bitboards[BLACK_PAWN] & ISOLATED_PAWN_MASK_TABLE[square]) == 0) score += ISOLATED_PAWN_PENALTY;
 
 		//passed pawn bonus
-		pawns = this_bitboards[WHITE_PAWN] & PASSED_PAWN_MASK_TABLE[BLACK][square];
-		if (pawns.CountBit() == 0) score -= PASSED_PAWN_BONUS_TABLE[BLACK][GetRank(square)];
+		if ((this_bitboards[WHITE_PAWN] & PASSED_PAWN_MASK_TABLE[BLACK][square]) == 0) score -= PASSED_PAWN_BONUS_TABLE[BLACK][GetRank(square)];
 	}
 
 

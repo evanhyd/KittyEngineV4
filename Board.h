@@ -65,6 +65,8 @@ class Board
 		{0, 5, 10, 20, 35, 60, 100, 0}
 	};
 
+	static constexpr int SEMI_OPEN_FILE_BONUS = 10;
+	static constexpr int OPEN_FILE_BONUS = 15;
 	static constexpr int BISHOP_PAIR_BONUS = 50;
 
 	static constexpr int MATE_SCORE = -30000;
