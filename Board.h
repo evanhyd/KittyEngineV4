@@ -52,7 +52,7 @@ class Board
 	static constexpr int NULL_MOVE_DEPTH_REDUCTION = 3;
 	static constexpr int LATE_MOVE_SEARCHED_REQUIRED = 4; //change this value if the engine failed to find good moves
 	static constexpr int LATE_MOVE_DEPTH_REDUCTION = 3;
-	static constexpr size_t REPEATED_POSITION_SIZE = 16384; //power of 2 for fast modulo
+	static constexpr size_t REPEATED_POSITION_SIZE = 262144; //power of 2 for fast modulo
 	static constexpr size_t TRANSPOSITION_TABLE_SIZE = 8388608; //power of 2 for fast modulo
 
 
@@ -71,7 +71,7 @@ class Board
 
 	//piece mobility
 	static constexpr int PIECE_MOBILITY_THRESHOLD_TABLE[12] = {0, 4, 6, 7, 0, 0, 0, 4, 6, 7, 0, 0};
-	static constexpr int PIECE_MOBILITY_BONUS_TABLE[12] = { 0, 4, 5, 2, 1, 0 , 0, 4, 5, 2, 1, 0 };
+	static constexpr int PIECE_MOBILITY_BONUS_TABLE[12] = { 0, 4, 3, 2, 0, 0, 0, 4, 3, 2, 0, 0 };
 
 	//piece values
 	static constexpr int MATE_SCORE = -30000;
@@ -307,7 +307,7 @@ public:
 	int pv_length[MAX_SEARCHING_DEPTH];
 	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
 
-	bool repeated_position[REPEATED_POSITION_SIZE];
+	bool* repeated_position;
 	Transposition* transposition_table;
 
 	Timer timer;

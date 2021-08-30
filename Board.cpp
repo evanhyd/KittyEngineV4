@@ -1222,8 +1222,9 @@ void Board::PrintBoard()
 }
 
 
-Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), killer_heuristic{}, pv_length{}, pv_table{}, repeated_position{}, timer()
+Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), killer_heuristic{}, pv_length{}, pv_table{}, timer()
 {
+	this->repeated_position = new bool[REPEATED_POSITION_SIZE]();
 	this->transposition_table = new Transposition[TRANSPOSITION_TABLE_SIZE]();
 	this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
