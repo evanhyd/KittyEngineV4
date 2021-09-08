@@ -352,11 +352,13 @@ void Board::ParseTrain(const std::string& train_str)
 	{
 		std::cout << "Training game: " << game << '\n';
 		this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-		if(game & 1) this->boardstate.side_to_move = this->boardstate.side_to_move ^ 1;
+
+		if (game % 2) this->neural_network_evaluation = true;
+		else this->neural_network_evaluation = false;
+		
 
 		while (true)
 		{
-			this->neural_network_evaluation = !this->neural_network_evaluation;
 			bool in_check = IsKingAttacked();
 			bool has_legal_move = false;
 			pseudo_moves = GetPseudoMoves();
@@ -364,6 +366,7 @@ void Board::ParseTrain(const std::string& train_str)
 			{
 				if (MakePseudoMove(pseudo_move))
 				{
+					RestoreState();
 					has_legal_move = true;
 					break;
 				}
@@ -389,10 +392,14 @@ void Board::ParseTrain(const std::string& train_str)
 				}
 			}
 
-			this->ParseGo("go wtime 15000 btime 15000");
+			this->ParseGo("go movetime " + to_string(MODEL_THINKING_TIME_MS_PER_MOVE));
 			this->PrintBoard();
+
+			this->neural_network_evaluation = !this->neural_network_evaluation;
 		}
 	}
+
+
 
 	this->neural_network_evaluation = false;
 }

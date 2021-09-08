@@ -298,6 +298,7 @@ class Board
 	static const std::vector<int> MODEL_TOPOLOGY;
 	static constexpr const char* MODEL_FILE_NAME = "kitty_brain.nn";
 	static constexpr double MODEL_MATE_SCORE = 30000.0;
+	static constexpr int MODEL_THINKING_TIME_MS_PER_MOVE = 500;
 
 public:
 

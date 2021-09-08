@@ -1,14 +1,1 @@
-﻿  NeuralNetwork.cpp
-C:\Users\evanh\Desktop\KittyEngineV4\NeuralNetwork.cpp(79,2): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-C:\Users\evanh\Desktop\KittyEngineV4\NeuralNetwork.cpp(92,2): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
-  Neuron.cpp
-  bitboard.cpp
-  board.cpp
-  boardstate.cpp
-  main.cpp
-  move.cpp
-  piece_attack_table.cpp
-  transposition.cpp
-  Generating code
-  Finished generating code
-  KittyEngine.vcxproj -> C:\Users\evanh\Desktop\KittyEngineV4\x64\Release\KittyEngine.exe
+﻿  KittyEngine.vcxproj -> C:\Users\evanh\Desktop\KittyEngineV4\x64\Release\KittyEngine.exe
