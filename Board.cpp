@@ -352,6 +352,7 @@ void Board::ParseTrain(const std::string& train_str)
 	{
 		std::cout << "Training game: " << game << '\n';
 		this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+		if(game & 1) this->boardstate.side_to_move = this->boardstate.side_to_move ^ 1;
 
 		while (true)
 		{
@@ -388,7 +389,7 @@ void Board::ParseTrain(const std::string& train_str)
 				}
 			}
 
-			this->ParseGo("go wtime 20000 btime 20000");
+			this->ParseGo("go wtime 15000 btime 15000");
 			this->PrintBoard();
 		}
 	}
@@ -1004,10 +1005,10 @@ int Board::NeuralNetworkEvaluate()
 	}
 
 	features[12 * 64 + this->boardstate.enpassant_square] = 1.0;
-	features[MODEL_TOPOLOGY.front() - 5] = double(this->boardstate.castle & WHITE_KING_SIDE_CASTLE);
-	features[MODEL_TOPOLOGY.front() - 4] = double(this->boardstate.castle & WHITE_QUEEN_SIDE_CASTLE);
-	features[MODEL_TOPOLOGY.front() - 3] = double(this->boardstate.castle & BLACK_KING_SIDE_CASTLE);
-	features[MODEL_TOPOLOGY.front() - 2] = double(this->boardstate.castle & BLACK_QUEEN_SIDE_CASTLE);
+	features[MODEL_TOPOLOGY.front() - 5] = double(this->boardstate.castle >> 3 & 1);
+	features[MODEL_TOPOLOGY.front() - 4] = double(this->boardstate.castle >> 2 & 1);
+	features[MODEL_TOPOLOGY.front() - 3] = double(this->boardstate.castle >> 1 & 1);
+	features[MODEL_TOPOLOGY.front() - 2] = double(this->boardstate.castle >> 0 & 1);
 	features[MODEL_TOPOLOGY.front() - 1] = double(this->boardstate.side_to_move);
 
 	this->model.ForwardPropagate(features);
@@ -1020,7 +1021,7 @@ void Board::NeuralNetworkUpdate(int winning_side)
 {
 	vector<double> labeled_examples(MODEL_TOPOLOGY.front());
 	int example_index = 0;
-
+	
 	const Boardstate* stack = this->boardstate_history.Data();
 	for (int i = 0; i < this->boardstate_history.Size(); ++i)
 	{
@@ -1030,17 +1031,17 @@ void Board::NeuralNetworkUpdate(int winning_side)
 		{
 			for (int square = 0; square < 64; ++square)
 			{
-				labeled_examples[example_index] = bitboard.GetBit(square);
+				labeled_examples[example_index] = double(bitboard.GetBit(square));
 				++example_index;
 			}
 		}
 
-		labeled_examples[12 * 64 + this->boardstate.enpassant_square] = 1.0;
-		labeled_examples[MODEL_TOPOLOGY.front() - 5] = stack[i].castle & WHITE_KING_SIDE_CASTLE;
-		labeled_examples[MODEL_TOPOLOGY.front() - 4] = stack[i].castle & WHITE_QUEEN_SIDE_CASTLE;
-		labeled_examples[MODEL_TOPOLOGY.front() - 3] = stack[i].castle & BLACK_KING_SIDE_CASTLE;
-		labeled_examples[MODEL_TOPOLOGY.front() - 2] = stack[i].castle & BLACK_QUEEN_SIDE_CASTLE;
-		labeled_examples[MODEL_TOPOLOGY.front() - 1] = stack[i].side_to_move;
+		labeled_examples[12 * 64 + stack[i].enpassant_square] = 1.0;
+		labeled_examples[MODEL_TOPOLOGY.front() - 5] = double(stack[i].castle >> 3 & 1);
+		labeled_examples[MODEL_TOPOLOGY.front() - 4] = double(stack[i].castle >> 2 & 1);
+		labeled_examples[MODEL_TOPOLOGY.front() - 3] = double(stack[i].castle >> 1 & 1);
+		labeled_examples[MODEL_TOPOLOGY.front() - 2] = double(stack[i].castle >> 0 & 1);
+		labeled_examples[MODEL_TOPOLOGY.front() - 1] = double(stack[i].side_to_move);
 
 		this->model.ForwardPropagate(labeled_examples);
 
@@ -1048,7 +1049,6 @@ void Board::NeuralNetworkUpdate(int winning_side)
 		else if(winning_side == BLACK) this->model.BackPropagate({ -1.0 });
 		else this->model.BackPropagate({ 0.0 });
 	}
-
 	this->model.SaveNeuralNetwork(MODEL_FILE_NAME);
 }
 
