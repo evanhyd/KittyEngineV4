@@ -4,10 +4,9 @@
 #include "move.h"
 #include "timer.h"
 #include "transposition.h"
+#include "NeuralNetwork.h"
 #include <string>
 #include <vector>
-#include <set>
-#include <unordered_set>
 
 enum : int
 {
@@ -27,7 +26,7 @@ enum : int
 
 enum : int
 {
-	WK = 0b0001, WQ = 0b0010, BK = 0b0100, BQ = 0b1000 
+	WHITE_KING_SIDE_CASTLE = 0b0001, WHITE_QUEEN_SIDE_CASTLE = 0b0010, BLACK_KING_SIDE_CASTLE = 0b0100, BLACK_QUEEN_SIDE_CASTLE = 0b1000 
 };
 
 enum : int
@@ -68,12 +67,8 @@ class Board
 	static constexpr int SEMI_OPEN_FILE_BONUS = 10;
 	static constexpr int OPEN_FILE_BONUS = 15;
 	static constexpr int BISHOP_PAIR_BONUS = 50;
-
-	//piece mobility
-	static constexpr int PIECE_MOBILITY_THRESHOLD_TABLE[12] = {0, 4, 6, 7, 0, 0, 0, 4, 6, 7, 0, 0};
 	static constexpr int PIECE_MOBILITY_BONUS_TABLE[12] = { 0, 4, 3, 2, 0, 0, 0, 4, 3, 2, 0, 0 };
 
-	//piece values
 	static constexpr int MATE_SCORE = -30000;
 	static constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 0, 100, 330, 345, 500, 975, 0 };
 	static constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
@@ -297,18 +292,28 @@ class Board
 		}
 	};
 
+
+	//Neural Network configuration
+	//bitboards + enpassant + castling permission + side to move
+	static const std::vector<int> MODEL_TOPOLOGY;
+	static constexpr const char* MODEL_FILE_NAME = "kitty_brain.nn";
+	static constexpr double MODEL_MATE_SCORE = 30000.0;
+
 public:
 
 	Boardstate boardstate;
 	BoardstateStack boardstate_history;
 
 	int visited_nodes;
-	Move killer_heuristic[MAX_SEARCHING_DEPTH][2];
 	int pv_length[MAX_SEARCHING_DEPTH];
 	Move pv_table[MAX_SEARCHING_DEPTH][MAX_SEARCHING_DEPTH]; //searching depth, move index
+	Move killer_heuristic[MAX_SEARCHING_DEPTH][2];
 
 	bool* repeated_position;
 	Transposition* transposition_table;
+
+	NeuralNetwork model;
+	bool neural_network_evaluation = false;
 
 	Timer timer;
 
@@ -319,6 +324,7 @@ public:
 	void ParsePosition(const std::string& position_str);
 	void ParsePerfTest(const std::string& go_str);
 	void ParseGo(const std::string& go_str);
+	void ParseTrain(const std::string& train_str);
 	void UCI();
 
 	bool IsSquareAttacked(int square, int attack_side);
@@ -331,8 +337,13 @@ public:
 	void SaveState();
 	void RestoreState();
 
-	void PerfTest(int depth);
+	bool IsMaterialSufficient(int pawn_num, int minor_num, int major_num);
 	int Evaluate();
+	int NeuralNetworkEvaluate();
+	void NeuralNetworkUpdate(int winning_side);
+
+
+	void PerfTest(int depth);
 	void SortMoves(std::vector<Move>& moves, int depth);
 	void SortNonQuietMoves(std::vector<Move>& moves);
 	int Search(int max_depth, int depth, int alpha, int beta, bool null_move_reduced = false);
@@ -363,5 +374,5 @@ constexpr int CASTLING_PERMISSION_FILTER_TABLE[64] = {
 };
 
 constexpr int PIECE_SIDE_TABLE[12] = { WHITE, WHITE, WHITE, WHITE, WHITE, WHITE, BLACK, BLACK, BLACK, BLACK, BLACK, BLACK };
-constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WK, WQ}, {BK, BQ} }; //[side][castle_type]
+constexpr int CASTLE_PERMISSION_REQUIREMENT_TABLE[2][2] = { {WHITE_KING_SIDE_CASTLE, WHITE_QUEEN_SIDE_CASTLE}, {BLACK_KING_SIDE_CASTLE, BLACK_QUEEN_SIDE_CASTLE} }; //[side][castle_type]
 constexpr U64 CASTLE_GET_OCCUPANCY_MASK_TABLE[2][2] = { {6917529027641081856, 1008806316530991104}, {96, 14} }; //[side][castle_type]

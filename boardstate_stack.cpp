@@ -26,6 +26,10 @@ Boardstate& BoardstateStack::Back()
 	return this->stack[size - 1];
 }
 
+const Boardstate* BoardstateStack::Data() const
+{
+	return this->stack;
+}
 
 BoardstateStack::BoardstateStack(size_t size)
 {

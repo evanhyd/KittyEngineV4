@@ -1,8 +1,6 @@
 #pragma once
 #include "boardstate.h"
 
-using namespace std;
-
 class BoardstateStack
 {
 	Boardstate* stack;
@@ -15,6 +13,7 @@ public:
 	void Clear();
 	size_t Size();
 	Boardstate& Back();
+	const Boardstate* Data() const;
 
 	BoardstateStack(size_t size);
 };

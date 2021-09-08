@@ -9,6 +9,7 @@
 using namespace std;
 using namespace std::chrono;
 
+const std::vector<int> Board::MODEL_TOPOLOGY = { 12 * 64 + 64 + 4 + 1, 30, 30, 30, 1 };
 
 char PieceToAscii(int piece)
 {
@@ -139,10 +140,10 @@ void Board::ParseFEN(const string& FEN)
 
 		switch (*iter)
 		{
-		case 'K': this->boardstate.castle |= WK; break;
-		case 'Q': this->boardstate.castle |= WQ; break;
-		case 'k': this->boardstate.castle |= BK; break;
-		case 'q': this->boardstate.castle |= BQ; break;
+		case 'K': this->boardstate.castle |= WHITE_KING_SIDE_CASTLE; break;
+		case 'Q': this->boardstate.castle |= WHITE_QUEEN_SIDE_CASTLE; break;
+		case 'k': this->boardstate.castle |= BLACK_KING_SIDE_CASTLE; break;
+		case 'q': this->boardstate.castle |= BLACK_QUEEN_SIDE_CASTLE; break;
 		}
 		++iter;
 	}
@@ -341,6 +342,60 @@ void Board::ParseGo(const string& go_str)
 	if (best_move) MakePseudoMove(best_move);
 }
 
+void Board::ParseTrain(const std::string& train_str)
+{
+	std::vector<Move> pseudo_moves;
+
+	int max_game = stoi(train_str.substr(6));
+
+	for (int game = 0; game < max_game; ++game)
+	{
+		std::cout << "Training game: " << game << '\n';
+		this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+
+		while (true)
+		{
+			this->neural_network_evaluation = !this->neural_network_evaluation;
+			bool in_check = IsKingAttacked();
+			bool has_legal_move = false;
+			pseudo_moves = GetPseudoMoves();
+			for (Move pseudo_move : pseudo_moves)
+			{
+				if (MakePseudoMove(pseudo_move))
+				{
+					has_legal_move = true;
+					break;
+				}
+			}
+
+			//game over
+			if (!has_legal_move)
+			{
+				if (in_check) NeuralNetworkUpdate(this->boardstate.side_to_move ^ 1);
+				else NeuralNetworkUpdate(BOTH);
+				break;
+			}
+			else
+			{
+				int pawn_num = this->boardstate.bitboards[WHITE_PAWN].CountBit() + this->boardstate.bitboards[BLACK_PAWN].CountBit();
+				int minor_num = this->boardstate.bitboards[WHITE_KNIGHT].CountBit() + this->boardstate.bitboards[WHITE_BISHOP].CountBit() + this->boardstate.bitboards[BLACK_KNIGHT].CountBit() + this->boardstate.bitboards[BLACK_BISHOP].CountBit();
+				int major_num = this->boardstate.bitboards[WHITE_ROOK].CountBit() + this->boardstate.bitboards[WHITE_QUEEN].CountBit() + this->boardstate.bitboards[BLACK_ROOK].CountBit() + this->boardstate.bitboards[BLACK_QUEEN].CountBit();
+				
+				if (!IsMaterialSufficient(pawn_num, minor_num, major_num))
+				{
+					NeuralNetworkUpdate(BOTH);
+					break;
+				}
+			}
+
+			this->ParseGo("go wtime 20000 btime 20000");
+			this->PrintBoard();
+		}
+	}
+
+	this->neural_network_evaluation = false;
+}
+
 void Board::UCI()
 {
 	ios_base::sync_with_stdio(false);
@@ -361,6 +416,7 @@ void Board::UCI()
 		else if (command.find("perft") != string::npos) ParsePerfTest(command);
 		else if (command.find("go") != string::npos) ParseGo(command);
 		else if (command.find("takeback") != string::npos) RestoreState();
+		else if (command.find("train") != string::npos) ParseTrain(command);
 		else if (command.find("quit") != string::npos) break;
 		else cout << "Invaild command\a\n";
 
@@ -753,27 +809,9 @@ void Board::RestoreState()
 
 
 
-
-void Board::PerfTest(int depth)
+bool Board::IsMaterialSufficient(int pawn_num, int minor_num, int major_num)
 {
-	if (depth == 0)
-	{
-		++this->visited_nodes;
-		return;
-	}
-
-	vector<Move> pseudo_moves = GetPseudoMoves();
-
-	for (Move move : pseudo_moves)
-	{
-		if (MakePseudoMove(move))
-		{
-			PerfTest(depth - 1);
-			RestoreState();
-		}
-	}
-
-	return;
+	return pawn_num || minor_num > 1 || major_num;
 }
 
 int Board::Evaluate()
@@ -792,7 +830,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetKnightAttackExact(square) & ~this->boardstate.occupancies[WHITE];
-		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_KNIGHT]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_KNIGHT];
+		score += attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[WHITE_KNIGHT];
 	}
 
 	for (Bitboard bitboard = this_bitboards[WHITE_BISHOP]; bitboard; bitboard.PopBit())
@@ -802,7 +840,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
-		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_BISHOP]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_BISHOP];
+		score += attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[WHITE_BISHOP];
 	}
 
 	for (Bitboard bitboard = this_bitboards[WHITE_ROOK]; bitboard; bitboard.PopBit())
@@ -812,7 +850,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
-		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_ROOK]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_ROOK];
+		score += attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[WHITE_ROOK];
 
 		//semi open / open file bonuses
 		if ((this_bitboards[WHITE_PAWN] & FILE_MASK_TABLE[square]) == 0)
@@ -829,7 +867,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[WHITE];
-		score += (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[WHITE_QUEEN]) * PIECE_MOBILITY_BONUS_TABLE[WHITE_QUEEN];
+		score += attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[WHITE_QUEEN];
 	}
 
 
@@ -847,7 +885,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetKnightAttackExact(square) & ~this->boardstate.occupancies[BLACK];
-		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_KNIGHT]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_KNIGHT];
+		score -= attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[BLACK_KNIGHT];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_BISHOP]; bitboard; bitboard.PopBit())
@@ -857,7 +895,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetBishopAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
-		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_BISHOP]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_BISHOP];
+		score -= attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[BLACK_BISHOP];
 	}
 
 	for (Bitboard bitboard = this_bitboards[BLACK_ROOK]; bitboard; bitboard.PopBit())
@@ -867,7 +905,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetRookAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
-		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_ROOK]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_ROOK];
+		score -= attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[BLACK_ROOK];
 
 		//semi open / open file bonuses
 		if ((this_bitboards[BLACK_PAWN] & FILE_MASK_TABLE[square]) == 0)
@@ -884,7 +922,7 @@ int Board::Evaluate()
 
 		//mobility bonus
 		Bitboard attack_table = GetQueenAttackExact(square, this->boardstate.occupancies[BOTH]) & ~this->boardstate.occupancies[BLACK];
-		score -= (attack_table.CountBit() - PIECE_MOBILITY_THRESHOLD_TABLE[BLACK_QUEEN]) * PIECE_MOBILITY_BONUS_TABLE[BLACK_QUEEN];
+		score -= attack_table.CountBit() * PIECE_MOBILITY_BONUS_TABLE[BLACK_QUEEN];
 	}
 
 	minor_piece_num[WHITE] = this_bitboards[WHITE_KNIGHT].CountBit() + this_bitboards[WHITE_BISHOP].CountBit();
@@ -931,8 +969,8 @@ int Board::Evaluate()
 	}
 
 
-	if (this_bitboards[WHITE_PAWN].CountBit() == 0 && this_bitboards[BLACK_PAWN].CountBit() == 0 &&
-		major_piece_num[BOTH] == 0 && minor_piece_num[BOTH] <= 1) return 0;
+	//check material sufficiency
+	if (!IsMaterialSufficient(this_bitboards[WHITE_PAWN].CountBit() + this_bitboards[BLACK_PAWN].CountBit(), minor_piece_num[BOTH], major_piece_num[BOTH])) return 0;
 
 
 	//king early/endgame positional bonus
@@ -949,6 +987,100 @@ int Board::Evaluate()
 
 	return this->boardstate.side_to_move == WHITE ? score : -score;
 }
+
+
+int Board::NeuralNetworkEvaluate()
+{
+	vector<double> features(MODEL_TOPOLOGY.front());
+	int feature_index = 0;
+
+	for (Bitboard bitboard : this->boardstate.bitboards)
+	{
+		for (int square = 0; square < 64; ++square)
+		{
+			features[feature_index] = double(bitboard.GetBit(square));
+			++feature_index;
+		}
+	}
+
+	features[12 * 64 + this->boardstate.enpassant_square] = 1.0;
+	features[MODEL_TOPOLOGY.front() - 5] = double(this->boardstate.castle & WHITE_KING_SIDE_CASTLE);
+	features[MODEL_TOPOLOGY.front() - 4] = double(this->boardstate.castle & WHITE_QUEEN_SIDE_CASTLE);
+	features[MODEL_TOPOLOGY.front() - 3] = double(this->boardstate.castle & BLACK_KING_SIDE_CASTLE);
+	features[MODEL_TOPOLOGY.front() - 2] = double(this->boardstate.castle & BLACK_QUEEN_SIDE_CASTLE);
+	features[MODEL_TOPOLOGY.front() - 1] = double(this->boardstate.side_to_move);
+
+	this->model.ForwardPropagate(features);
+	vector<double> predict = this->model.GetResult();
+	int score = int(predict.front() * MODEL_MATE_SCORE);
+	return (this->boardstate.side_to_move == WHITE ? score : -score);
+}
+
+void Board::NeuralNetworkUpdate(int winning_side)
+{
+	vector<double> labeled_examples(MODEL_TOPOLOGY.front());
+	int example_index = 0;
+
+	const Boardstate* stack = this->boardstate_history.Data();
+	for (int i = 0; i < this->boardstate_history.Size(); ++i)
+	{
+		example_index = 0;
+
+		for (Bitboard bitboard : stack[i].bitboards)
+		{
+			for (int square = 0; square < 64; ++square)
+			{
+				labeled_examples[example_index] = bitboard.GetBit(square);
+				++example_index;
+			}
+		}
+
+		labeled_examples[12 * 64 + this->boardstate.enpassant_square] = 1.0;
+		labeled_examples[MODEL_TOPOLOGY.front() - 5] = stack[i].castle & WHITE_KING_SIDE_CASTLE;
+		labeled_examples[MODEL_TOPOLOGY.front() - 4] = stack[i].castle & WHITE_QUEEN_SIDE_CASTLE;
+		labeled_examples[MODEL_TOPOLOGY.front() - 3] = stack[i].castle & BLACK_KING_SIDE_CASTLE;
+		labeled_examples[MODEL_TOPOLOGY.front() - 2] = stack[i].castle & BLACK_QUEEN_SIDE_CASTLE;
+		labeled_examples[MODEL_TOPOLOGY.front() - 1] = stack[i].side_to_move;
+
+		this->model.ForwardPropagate(labeled_examples);
+
+		if (winning_side == WHITE) this->model.BackPropagate({1.0});
+		else if(winning_side == BLACK) this->model.BackPropagate({ -1.0 });
+		else this->model.BackPropagate({ 0.0 });
+	}
+
+	this->model.SaveNeuralNetwork(MODEL_FILE_NAME);
+}
+
+
+
+
+
+
+
+
+void Board::PerfTest(int depth)
+{
+	if (depth == 0)
+	{
+		++this->visited_nodes;
+		return;
+	}
+
+	vector<Move> pseudo_moves = GetPseudoMoves();
+
+	for (Move move : pseudo_moves)
+	{
+		if (MakePseudoMove(move))
+		{
+			PerfTest(depth - 1);
+			RestoreState();
+		}
+	}
+
+	return;
+}
+
 
 void Board::SortMoves(vector<Move>& moves, int depth)
 {
@@ -1024,7 +1156,7 @@ int Board::Search(int max_depth, int depth, int alpha, int beta, bool null_move_
 	//should also check the max_seraching depth to avoid overflow
 	if (depth >= max_depth)
 	{
-		++this->visited_nodes;
+		++this->visited_nodes; 
 		return Quiescence(alpha, beta);
 	}
 
@@ -1155,7 +1287,7 @@ int Board::Quiescence(int alpha, int beta)
 	//threefold repetition
 	if (this->repeated_position[this->boardstate.position_key & (REPEATED_POSITION_SIZE - 1)]) return 0;
 
-	int score = Evaluate();
+	int score = (this->neural_network_evaluation ? NeuralNetworkEvaluate() : Evaluate());
 
 	if (score >= beta) return beta;
 	alpha = max(alpha, score);
@@ -1222,9 +1354,10 @@ void Board::PrintBoard()
 }
 
 
-Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), killer_heuristic{}, pv_length{}, pv_table{}, timer()
+Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), pv_length{}, pv_table{}, killer_heuristic{}, repeated_position(new bool[REPEATED_POSITION_SIZE]()), transposition_table(new Transposition[TRANSPOSITION_TABLE_SIZE]()), model(MODEL_TOPOLOGY), neural_network_evaluation(false), timer()
 {
-	this->repeated_position = new bool[REPEATED_POSITION_SIZE]();
-	this->transposition_table = new Transposition[TRANSPOSITION_TABLE_SIZE]();
+	if (model.LoadNeuralNetwork(MODEL_FILE_NAME)) std::cout << "Neural Network file loaded\n";
+	else std::cout << "Failed to load the Neural Network file\n" << MODEL_FILE_NAME << " is missing" << '\n';
+
 	this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }

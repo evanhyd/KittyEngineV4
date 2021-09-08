@@ -148,9 +148,12 @@
     <ClCompile Include="board.cpp" />
     <ClCompile Include="boardstate.cpp" />
     <ClCompile Include="boardstate_stack.cpp" />
+    <ClCompile Include="Connection.cpp" />
     <ClCompile Include="magic.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="move.cpp" />
+    <ClCompile Include="NeuralNetwork.cpp" />
+    <ClCompile Include="Neuron.cpp" />
     <ClCompile Include="piece_attack_table.cpp" />
     <ClCompile Include="timer.cpp" />
     <ClCompile Include="transposition.cpp" />
@@ -160,8 +163,11 @@
     <ClInclude Include="board.h" />
     <ClInclude Include="boardstate.h" />
     <ClInclude Include="boardstate_stack.h" />
+    <ClInclude Include="Connection.h" />
     <ClInclude Include="magic.h" />
     <ClInclude Include="move.h" />
+    <ClInclude Include="NeuralNetwork.h" />
+    <ClInclude Include="Neuron.h" />
     <ClInclude Include="piece_attack_table.h" />
     <ClInclude Include="timer.h" />
     <ClInclude Include="transposition.h" />
