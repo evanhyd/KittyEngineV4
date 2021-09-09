@@ -69,7 +69,7 @@ class Board
 	static constexpr int BISHOP_PAIR_BONUS = 50;
 	static constexpr int PIECE_MOBILITY_BONUS_TABLE[12] = { 0, 4, 3, 2, 0, 0, 0, 4, 3, 2, 0, 0 };
 
-	static constexpr int MATE_SCORE = -30000;
+	static constexpr int MATE_SCORE = -20000;
 	static constexpr int PIECE_MATERIAL_VALUE_TABLE[12] = { 100, 330, 345, 500, 975, 0, 100, 330, 345, 500, 975, 0 };
 	static constexpr int PIECE_POSITIONAL_VALUE_TABLE[12][64] =
 	{
@@ -297,7 +297,7 @@ class Board
 	//bitboards + enpassant + castling permission + side to move
 	static const std::vector<int> MODEL_TOPOLOGY;
 	static constexpr const char* MODEL_FILE_NAME = "kitty_brain.nn";
-	static constexpr double MODEL_MATE_SCORE = 30000.0;
+	static constexpr double MODEL_MAX_SCORE = 20000.0;
 	static constexpr int MODEL_THINKING_TIME_MS_PER_MOVE = 3000;
 
 public:

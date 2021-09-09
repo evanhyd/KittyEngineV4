@@ -1020,7 +1020,7 @@ int Board::NeuralNetworkEvaluate()
 
 	this->model.ForwardPropagate(features);
 	vector<double> predict = this->model.GetResult();
-	int score = int(predict.front() * MODEL_MATE_SCORE);
+	int score = int(predict.front() * MODEL_MAX_SCORE);
 	return (this->boardstate.side_to_move == WHITE ? score : -score);
 }
 
