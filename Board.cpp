@@ -310,11 +310,12 @@ void Board::ParseGo(const string& go_str)
 	fill_n(&this->pv_length[0], sizeof(this->pv_length) / sizeof(this->pv_length[0]), 0);
 	fill_n(&this->pv_table[0][0], sizeof(this->pv_table) / sizeof(this->pv_table[0][0]), 0);
 	
+	
 	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
 	{
 		this->transposition_table[i].Clear();
 	}
-
+	
 	Move best_move = 0;
 
 	for (int depth = 1; depth <= max_depth && depth < MAX_SEARCHING_DEPTH;)
