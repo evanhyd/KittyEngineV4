@@ -258,7 +258,7 @@ void Board::ParsePerfTest(const string& perf_str)
 
 		cout << "Node: " << this->visited_nodes << '\n';
 		cout << "Time: " << duration.count() << " ms\n";
-		cout << "Speed: " << this->visited_nodes / duration.count() << " knode/s"<<endl;
+		cout << "Speed: " << this->visited_nodes / std::max(1ll, duration.count()) << " knode/s"<<endl;
 	}
 }
 
@@ -1365,7 +1365,7 @@ void Board::PrintBoard()
 Board::Board() : boardstate(), boardstate_history(BOARDSTATE_STACK_SIZE), visited_nodes(0), pv_length{}, pv_table{}, killer_heuristic{}, repeated_position(new bool[REPEATED_POSITION_SIZE]()), transposition_table(new Transposition[TRANSPOSITION_TABLE_SIZE]()), model(MODEL_TOPOLOGY), neural_network_evaluation(false), timer()
 {
 	if (model.LoadNeuralNetwork(MODEL_FILE_NAME)) std::cout << "Neural Network file loaded\n";
-	else std::cout << "Failed to load the Neural Network file\n" << MODEL_FILE_NAME << " is missing" << '\n';
+	else std::cout << "Failed to load the Neural Network file\n" << MODEL_FILE_NAME << " is missing. Loaded default model.\n";
 
 	this->ParseFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
